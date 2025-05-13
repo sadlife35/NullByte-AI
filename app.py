@@ -181,14 +181,16 @@ if prompt or uploaded_file:
                     label="Download CSV",
                     data=csv,
                     file_name="synthetic_data.csv",
-                    mime="text/csv"
+                    mime="text/csv",
+                    key="download_csv_prompt"  # Added unique key
                 )
             with col2:
                 st.download_button(
                     label="Download Excel",
                     data=excel_data,
                     file_name="synthetic_data.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_excel_prompt"  # Added unique key
                 )
     
     # Existing File Upload Logic
@@ -261,14 +263,16 @@ if prompt or uploaded_file:
                     label="Download CSV",
                     data=csv,
                     file_name="synthetic_data.csv",
-                    mime="text/csv"
+                    mime="text/csv",
+                    key="download_csv_upload"  # Added unique key
                 )
             with col2:
                 st.download_button(
                     label="Download Excel",
                     data=excel_data,
                     file_name="synthetic_data.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_excel_upload"  # Added unique key
                 )
 
         # Bias Checker
@@ -325,7 +329,8 @@ if prompt or uploaded_file:
                 label="Download PDF",
                 data=buffer.getvalue(),
                 file_name="report.pdf",
-                mime="application/pdf"
+                mime="application/pdf",
+                key="download_pdf_report"  # Added unique key
             )
 
 # Sidebar with Instructions
