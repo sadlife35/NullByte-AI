@@ -253,27 +253,6 @@ if prompt or uploaded_file:
             synthetic_df.to_excel(writer, index=False, sheet_name='Sheet1')
             writer.close()
             
-            # Read the created Excel file
-            with open('synthetic_data.xlsx', 'rb') as excel_file:
-                excel_data = excel_file.read()
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.download_button(
-                    label="Download CSV",
-                    data=csv,
-                    file_name="synthetic_data.csv",
-                    mime="text/csv",
-                    key="download_csv_upload"  # Added unique key
-                )
-            with col2:
-                st.download_button(
-                    label="Download Excel",
-                    data=excel_data,
-                    file_name="synthetic_data.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="download_excel_upload"  # Added unique key
-                )
 
         # Bias Checker
         st.subheader("📈 Bias Checker")
