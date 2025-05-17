@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nullbyte AI</title>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Particle.js -->
+  <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Manrope', sans-serif;
+      color: #ffffff;
+      background: linear-gradient(270deg, #000000, #1a1a1a, #333333);
+      background-size: 600% 600%;
+      animation: gradientBG 15s ease infinite;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    #particles-js {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+    }
+
+    header {
+      padding: 3rem 2rem 2rem;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    header p {
+      font-size: 1.2rem;
+      color: #cccccc;
+      margin-top: 0.5rem;
+    }
+
+    .buttons {
+      margin-top: 2rem;
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 0.9rem 2rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      text-decoration: none;
+    }
+
+    .btn-try {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid #cccccc;
+      color: #ffffff;
+    }
+
+    .btn-try:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .section {
+      padding: 4rem 2rem;
+      text-align: center;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .feature-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+      padding: 2rem;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: all 0.3s ease;
+      text-align: left;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 10px 25px rgba(255, 255, 255, 0.1);
+    }
+
+    /* New styles for How it Works & Who's it For section */
+    .info-sections {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 3rem;
+      margin-top: 3rem;
+      text-align: left;
+    }
+
+    .info-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+      padding: 2.5rem;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 0 15px rgba(255, 255, 255, 0.05);
+      transition: all 0.3s ease;
+    }
+
+    .info-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 12px 30px rgba(255, 255, 255, 0.12);
+    }
+
+    .info-card h3 {
+      font-weight: 700;
+      margin-bottom: 1rem;
+      font-size: 1.8rem;
+      color: #ffffff;
+    }
+
+    .info-card ul {
+      list-style-type: disc;
+      margin-left: 1.2rem;
+      margin-top: 1rem;
+      color: #ddd;
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+
+    footer {
+      padding: 2rem;
+      text-align: center;
+      font-size: 0.9rem;
+      color: #aaaaaa;
+    }
+
+    @media (max-width: 900px) {
+      .info-sections {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 600px) {
+      header h1 {
+        font-size: 2.2rem;
+      }
+
+      .btn {
+        width: 100%;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Particle Background -->
+  <div id="particles-js"></div>
+
+  <!-- Header -->
+  <header>
+    <h1>Nullbyte AI</h1>
+    <p>The future of AI-driven development, simplified.</p>
+
+    <div class="buttons">
+      <a href="https://nullbyteai.streamlit.app/" class="btn btn-try" target="_blank">Try Now</a>
+    </div>
+  </header>
+
+  <!-- Features Section -->
+  <section class="section" id="demo">
+    <h2 style="font-size: 2rem; margin-bottom: 2rem;">Why Nullbyte AI?</h2>
+    <div class="features">
+      <div class="feature-card">
+        <h3>🇮🇳 India-First Synthetic Data Generator</h3>
+        <p>Tailored to understand and generate data relevant to the Indian context, including specific PII and DPDP Act considerations.</p>
+      </div>
+      <div class="feature-card">
+        <h3>🚀 Built for Solo Devs and Lean Startup Teams</h3>
+        <p>An intuitive, powerful tool that doesn't require a large team or extensive setup. Get AI-ready data quickly and efficiently.</p>
+      </div>
+      <div class="feature-card">
+        <h3>🛡️ GDPR + DPDP-Aware</h3>
+        <p>Generate data with privacy in mind. Features built-in awareness for data protection regulations to help you build responsibly. </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works & Who's It For Section -->
+  <section class="section">
+    <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">How It Works & Who's It For</h2>
+    <div class="info-sections">
+      <div class="info-card" id="how-it-works">
+        <h3>How It Works</h3>
+        <ul>
+          <li>AI models trained on vast datasets to generate synthetic data accurately.</li>
+          <li>Customization options to tailor data generation to specific use cases and compliance needs.</li>
+          <li>Simple interface designed for fast onboarding and immediate productivity.</li>
+          <li>Integration-ready outputs for easy use with your existing data pipelines.</li>
+        </ul>
+      </div>
+      <div class="info-card" id="whos-it-for">
+        <h3>Who's It For</h3>
+        <ul>
+          <li>Solo developers looking to rapidly prototype AI models with realistic data.</li>
+          <li>Lean startup teams who need privacy-aware synthetic data without large overhead.</li>
+          <li>Enterprises requiring compliance with GDPR and DPDP while innovating safely.</li>
+          <li>Researchers and data scientists seeking high-quality synthetic datasets.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    © 2025 Nullbyte AI. All rights reserved.
+  </footer>
+
+  <!-- Particle Config -->
+  <script>
+    particlesJS("particles-js", {
+      "particles": {
+        "number": { "value": 50 },
+        "size": { "value": 3 },
+        "color": { "value": "#ffffff" },
+        "line_linked": {
+          "enable": true,
+          "distance": 150,
+          "color": "#ffffff"
+        },
+        "move": {
+          "speed": 1
+        }
+      },
+      "interactivity": {
+        "events": {
+          "onhover": { "enable": true, "mode": "repulse" }
+        }
+      }
+    });
+  </script>
+
+</body>
+</html>
