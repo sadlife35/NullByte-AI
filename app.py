@@ -10,6 +10,7 @@ import openpyxl
 import re
 from datetime import datetime
 from datetime import timedelta
+import zipfile # For downloading multiple tables as ZIP
 
 
 # Initialize Faker
@@ -41,10 +42,16 @@ PII_HANDLING_STRATEGIES = {
 DEFAULT_PII_STRATEGY_KEY = "default_pii_strategy"
 
 # --- Session State Initialization ---
-if 'schema' not in st.session_state:
-    st.session_state.schema = []
-if 'schema_df' not in st.session_state:
-    st.session_state.schema_df = None
+if 'table_schemas' not in st.session_state: # Changed from 'schema'
+    st.session_state.table_schemas = {} # Dict: {table_name: [field_defs]}
+if 'active_table_name' not in st.session_state:
+    st.session_state.active_table_name = None
+if 'relationships' not in st.session_state:
+    st.session_state.relationships = [] # List of relationship dicts
+if 'generated_data_frames' not in st.session_state: # New: To store {table_name: DataFrame}
+    st.session_state.generated_data_frames = {}
+if 'active_display_table_name' not in st.session_state: # New: For displaying selected table
+    st.session_state.active_display_table_name = None
 if 'edge_cases' not in st.session_state:
     st.session_state.edge_cases = []
 if DEFAULT_PII_STRATEGY_KEY not in st.session_state:
@@ -62,6 +69,20 @@ if 'uploaded_file_name_tab3' not in st.session_state:
 if 'file_action_tab3' not in st.session_state: # To store user choice in Tab 3
     st.session_state.file_action_tab3 = None
 
+
+# --- Constants for Dependency Logic ---
+STATE_CITY_MAP = {
+    "California": ["Los Angeles", "San Francisco", "San Diego", "Sacramento"],
+    "New York": ["New York City", "Buffalo", "Rochester", "Albany"],
+    "Texas": ["Houston", "Dallas", "Austin", "San Antonio"],
+    "Maharashtra": ["Mumbai", "Pune", "Nagpur", "Nashik"],
+    "Delhi": ["New Delhi", "Gurugram", "Noida"], # Note: Delhi is a Union Territory, New Delhi is its capital
+    "Karnataka": ["Bengaluru", "Mysuru", "Hubballi"],
+}
+COUNTRY_CURRENCY_MAP = {
+    "India": "INR", "United States": "USD", "United Kingdom": "GBP",
+    "Germany": "EUR", "Japan": "JPY", "China": "CNY",
+}
 
 # ---- Header ----
 st.title(f"{APP_NAME}: {APP_TAGLINE}")
@@ -610,6 +631,7 @@ CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP = {
     "reference_number": {"type": "string", "constraint": "", "is_reference_number_pattern": True, "display_name": "Reference Number"},
     "amount": {"type": "float", "constraint": "100-10000", "display_name": "Amount"},
     "salary": {"type": "int", "constraint": "20000-200000", "display_name": "Salary"},
+    "transaction_type": {"type": "category", "constraint": ",".join(TRANSACTION_TYPES_LIST), "display_name": "Transaction Type"},
 
     # Food Delivery Domain
     "restaurant_name": {"type": "string", "constraint": "", "is_faker_company": True, "suffix_from_list": RESTAURANT_TYPES_LIST, "display_name": "Restaurant Name"},
@@ -626,7 +648,10 @@ CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP = {
     "student_id": {"type": "string", "constraint": "", "is_generic_numeric_id": True, "display_name": "Student ID"},
     "school_name": {"type": "string", "constraint": "", "is_faker_company": True, "suffix": " School", "display_name": "School Name"},
     "teacher_name": {"type": "name", "constraint": "", "prefix_options": ["Mr.", "Ms.", "Dr."], "display_name": "Teacher Name"},
+    "grade": {"type": "category", "constraint": ",".join(GRADES_LIST), "display_name": "Grade"},
+    "subject": {"type": "category", "constraint": ",".join(SUBJECTS_LIST), "display_name": "Subject"},
     "attendance": {"type": "string", "constraint": "70-100", "is_percentage_pattern": True, "display_name": "Attendance"},
+    "course_name": {"type": "string", "constraint": "", "is_faker_bs": True, "display_name": "Course Name"},
 
     # Employee Domain
     "employee_id": {"type": "string", "constraint": "", "is_generic_numeric_id": True, "display_name": "Employee ID"},
@@ -634,6 +659,7 @@ CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP = {
     # Real Estate Domain
     "property_id": {"type": "string", "constraint": "", "is_generic_numeric_id": True, "display_name": "Property ID"},
     "area": {"type": "string", "constraint": "500-3000", "unit": "sq.ft.", "is_measurement_pattern": True, "display_name": "Area"},
+    "property_type": {"type": "category", "constraint": ",".join(PROPERTY_TYPES_LIST), "display_name": "Property Type"},
     "year_built": {"type": "int", "constraint": "1990-2023", "display_name": "Year Built"},
 
     # E-commerce (some fields might be general or already covered)
@@ -714,6 +740,112 @@ CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP = {
     "travel_activity": {"type": "category", "constraint": ",".join(TRAVEL_ACTIVITY_TYPES_LIST), "display_name": "Activity Booked"},
 
     # This is a crucial step for the refactor to work comprehensively.
+}
+
+# --- NEW: Domain Prompt to Predefined Schema Mapping ---
+# Maps common domain phrases to a list of canonical field keys
+DOMAIN_PROMPT_TO_SCHEMA_MAP = {
+    "medical data": [
+        "patient_id", "patient_name", "age", "gender", "admission_date",
+        "discharge_date", "diagnosis", "doctor_name", "hospital_name",
+        "blood_type", "medication", "phone", "email"
+    ],
+    "hospital data": [
+        "patient_id", "patient_name", "age", "gender", "admission_date",
+        "discharge_date", "diagnosis", "doctor_name", "hospital_name",
+        "room_number", "insurance_provider", "blood_type", "medication", "phone", "email"
+    ],
+    "healthcare data": [
+        "patient_id", "patient_name", "age", "gender", "admission_date",
+        "discharge_date", "diagnosis", "doctor_name", "hospital_name",
+        "insurance_provider", "blood_type", "medication", "phone", "email"
+    ],
+    "e-commerce data": [
+        "order_id", "customer_name", "email", "product_name", "quantity", "price",
+        "order_date", "shipping_address", "shipping_status", "payment_method", "product_category"
+    ],
+    "retail data": [
+        "order_id", "customer_name", "email", "product_name", "quantity", "price",
+        "order_date", "shipping_address", "shipping_status", "payment_method", "product_category"
+    ],
+    "employee data": [
+        "employee_id", "name", "email", "phone", "job", 
+        "department", "salary", "date", 
+        "age", "gender", "address"
+    ],
+    "hr data": [
+        "employee_id", "name", "email", "phone", "job",
+        "department", "salary", "date", "age", "gender", "address"
+    ],
+    "financial data": [
+        "transaction_id", "account_number", "date", "amount", "transaction_type",
+        "description", "bank_name", "currency", "balance", "ifsc", "upi"
+    ],
+    "banking data": [
+        "transaction_id", "account_number", "date", "amount", "transaction_type",
+        "description", "bank_name", "currency", "balance", "ifsc", "upi", "customer_name"
+    ],
+    "social media data": [
+        "id", "username", "post_text", "timestamp", "like_count",
+        "share_count", "comment_text", "hashtags"
+    ],
+    "logistics data": [
+        "shipment_id", "tracking_number", "carrier_name", "origin_location",
+        "destination_location", "shipment_status_logistics", "estimated_delivery_date",
+        "actual_delivery_date", "freight_cost", "package_weight_kg", "package_dimensions_cm"
+    ],
+    "supply chain data": [
+        "shipment_id", "tracking_number", "carrier_name", "origin_location",
+        "destination_location", "shipment_status_logistics", "estimated_delivery_date",
+        "actual_delivery_date", "freight_cost", "package_weight_kg", "package_dimensions_cm", "product_name"
+    ],
+    "travel data": [
+        "booking_id", "traveler_name", "destination_city_travel", "origin_city_travel",
+        "travel_date", "return_date", "flight_number", "airline_name", "hotel_name",
+        "room_type", "booking_status_travel", "total_travel_cost", "email", "phone"
+    ],
+    "tourism data": [
+        "booking_id", "traveler_name", "destination_city_travel", "origin_city_travel",
+        "travel_date", "return_date", "flight_number", "airline_name", "hotel_name",
+        "room_type", "booking_status_travel", "total_travel_cost", "email", "phone", "travel_activity"
+    ],
+    "iot data": [
+        "sensor_id", "timestamp", "temperature", "humidity", "latitude", "longitude", "sensor_type", "value"
+    ],
+    "sensor data": [
+        "sensor_id", "timestamp", "temperature", "humidity", "latitude", "longitude", "sensor_type", "value"
+    ],
+    "academic data": [
+        "id", "publication_title", "author_names", "journal_name", "publication_year", "doi", "keywords", "citation_count", "publication_type"
+    ],
+    "research data": [
+        "id", "publication_title", "author_names", "journal_name", "publication_year", "doi", "keywords", "citation_count", "publication_type"
+    ],
+     "student data": [
+        "student_id", "name", "age", "gender", "email", "phone", "address",
+        "school_name", "grade", "subject", "marks", "attendance"
+    ],
+    "education data": [
+        "student_id", "name", "age", "gender", "email", "school_name", "grade", "subject", "marks",
+        "teacher_name", "course_name" 
+    ],
+    "real estate data": [
+        "property_id", "property_type", "address", "city", "state", "pincode", "area",
+        "price", "bedrooms", "bathrooms", "year_built", "status"
+    ],
+    "property data": [
+        "property_id", "property_type", "address", "city", "state", "pincode", "area",
+        "price", "bedrooms", "bathrooms", "year_built", "status"
+    ],
+    "food delivery data": [
+        "order_id", "customer_name", "restaurant_name", "food_items", "order_total",
+        "delivery_agent_name", "delivery_time_minutes", "delivery_rating", "delivery_address",
+        "payment_mode", "delivery_status"
+    ],
+    "restaurant data": [
+        "restaurant_name", "address", "city", "phone", "category", 
+        "order_id", "food_items", "order_total", "delivery_status"
+    ]
 }
 
 FIELD_GENERATORS = {
@@ -1003,48 +1135,72 @@ def generate_synthetic_data(description):
 
     # --- New Parsing Logic using FIELD_SYNONYM_TO_CANONICAL_MAP and CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP ---
     remaining_description = description.lower()
-    # Sort synonyms by length (descending) to match longer phrases first
-    sorted_synonyms = sorted(FIELD_SYNONYM_TO_CANONICAL_MAP.keys(), key=len, reverse=True)
-    
-    # Split prompt by common delimiters like ",", "and", "with" to isolate potential field names
-    # This is a simplification; more advanced NLP would be better.
-    potential_field_phrases = re.split(r'\s*(?:,|and|with)\s*', remaining_description)
-    
     processed_canonical_fields = set()
+    domain_matched = False
 
-    for phrase in potential_field_phrases:
-        phrase = phrase.strip()
-        if not phrase:
-            continue
+    # Sort domain keywords by length (descending) to match longer phrases first
+    sorted_domain_keywords = sorted(DOMAIN_PROMPT_TO_SCHEMA_MAP.keys(), key=len, reverse=True)
+
+    for domain_keyword in sorted_domain_keywords:
+        if domain_keyword in remaining_description:
+            st.info(f"Recognized domain: '{domain_keyword}'. Generating predefined schema.")
+            canonical_fields_for_domain = DOMAIN_PROMPT_TO_SCHEMA_MAP[domain_keyword]
+            for canonical_field in canonical_fields_for_domain:
+                if canonical_field in CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP:
+                    schema_detail = CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP[canonical_field]
+                    parsed_schema_fields.append({
+                        "name": schema_detail.get("display_name", canonical_field.replace("_", " ").title()),
+                        "type": schema_detail["type"],
+                        "constraint": schema_detail["constraint"],
+                        "pii_handling": st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake"),
+                        "_original_canonical": canonical_field
+                    })
+                    processed_canonical_fields.add(canonical_field) # Track processed fields
+                    # Add to detected PII/DPDP lists
+                    display_name = schema_detail.get("display_name", canonical_field.replace("_", " ").title())
+                    if display_name in PII_FIELDS or canonical_field in PII_FIELDS:
+                        if display_name not in detected_pii: detected_pii.append(display_name)
+                    if is_dpdp_pii(display_name) or is_dpdp_pii(canonical_field):
+                        if display_name not in detected_dpdp: detected_dpdp.append(display_name)
+            domain_matched = True
+            break # Stop after first domain match
+
+    if not domain_matched:
+        # Original logic for parsing individual fields if no domain was matched
+        # Sort synonyms by length (descending) to match longer phrases first
+        sorted_synonyms = sorted(FIELD_SYNONYM_TO_CANONICAL_MAP.keys(), key=len, reverse=True)
         
-        matched_canonical = None
-        # Try to match the phrase (or parts of it) against synonyms
-        for user_synonym in sorted_synonyms:
-            if user_synonym in phrase: # Check if synonym is part of the current phrase
-                canonical_field = FIELD_SYNONYM_TO_CANONICAL_MAP[user_synonym]
-                if canonical_field in CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP and canonical_field not in processed_canonical_fields:
-                    matched_canonical = canonical_field
-                    # Remove the matched synonym part from the phrase to avoid re-matching subsets
-                    # This is tricky and might need refinement. For now, we assume one field per phrase segment.
-                    # phrase = phrase.replace(user_synonym, "", 1).strip() 
-                    break 
-        
-        if matched_canonical:
-            schema_detail = CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP[matched_canonical]
-            parsed_schema_fields.append({
-                "name": schema_detail.get("display_name", matched_canonical.replace("_", " ").title()),
-                "type": schema_detail["type"],
-                "constraint": schema_detail["constraint"],
-                "pii_handling": st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake"), # Default PII handling
-                "_original_canonical": matched_canonical # Store for potential special handling
-            })
-            processed_canonical_fields.add(matched_canonical)
-            # Add to detected PII/DPDP lists
-            display_name = schema_detail.get("display_name", matched_canonical.replace("_", " ").title())
-            if display_name in PII_FIELDS or matched_canonical in PII_FIELDS: # Check both
-                if display_name not in detected_pii: detected_pii.append(display_name)
-            if is_dpdp_pii(display_name) or is_dpdp_pii(matched_canonical):
-                if display_name not in detected_dpdp: detected_dpdp.append(display_name)
+        # Split prompt by common delimiters like ",", "and", "with" to isolate potential field names
+        potential_field_phrases = re.split(r'\s*(?:,|and|with)\s*', remaining_description)
+
+        for phrase in potential_field_phrases:
+            phrase = phrase.strip()
+            if not phrase:
+                continue
+            
+            matched_canonical = None
+            for user_synonym in sorted_synonyms:
+                if user_synonym in phrase: 
+                    canonical_field = FIELD_SYNONYM_TO_CANONICAL_MAP[user_synonym]
+                    if canonical_field in CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP and canonical_field not in processed_canonical_fields:
+                        matched_canonical = canonical_field
+                        break 
+            
+            if matched_canonical:
+                schema_detail = CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP[matched_canonical]
+                parsed_schema_fields.append({
+                    "name": schema_detail.get("display_name", matched_canonical.replace("_", " ").title()),
+                    "type": schema_detail["type"],
+                    "constraint": schema_detail["constraint"],
+                    "pii_handling": st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake"), 
+                    "_original_canonical": matched_canonical 
+                })
+                processed_canonical_fields.add(matched_canonical)
+                display_name = schema_detail.get("display_name", matched_canonical.replace("_", " ").title())
+                if display_name in PII_FIELDS or matched_canonical in PII_FIELDS: 
+                    if display_name not in detected_pii: detected_pii.append(display_name)
+                if is_dpdp_pii(display_name) or is_dpdp_pii(matched_canonical):
+                    if display_name not in detected_dpdp: detected_dpdp.append(display_name)
 
     # Ensure we have at least some columns for simple generation
     if not parsed_schema_fields:
@@ -1079,83 +1235,47 @@ def generate_synthetic_data(description):
         canonical_key = field_schema_item.get("_original_canonical")
         schema_details_for_canonical = CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP.get(canonical_key, {})
 
-        if schema_details_for_canonical.get("is_faker_city"):
-            data[col_display_name] = [fake.city() for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_faker_state"):
-            data[col_display_name] = [fake.state() for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_faker_country"):
-            data[col_display_name] = [fake.country() for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("suffix_from_list") and schema_details_for_canonical.get("is_faker_company"): # More specific first
-            # For fields like restaurant_name that combine a fake company with a suffix from a list
-            suffix_list = schema_details_for_canonical["suffix_from_list"]
-            data[col_display_name] = [f"{fake.company()} {random.choice(suffix_list)}" for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_faker_company"): # General company name
-            base_names = [fake.company() for _ in range(num_rows)]
-            prefix = schema_details_for_canonical.get("prefix", "")
-            suffix = schema_details_for_canonical.get("suffix", "")
-            if prefix and not prefix.endswith(" "): prefix += " "
-            if suffix and not suffix.startswith(" "): suffix = " " + suffix
-            data[col_display_name] = [f"{prefix}{name}{suffix}".strip() for name in base_names]
-        elif schema_details_for_canonical.get("is_faker_postcode"):
-            data[col_display_name] = [fake.postcode() for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_faker_currency_code"):
-            data[col_display_name] = [fake.currency_code() for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_faker_job"):
-            data[col_display_name] = [fake.job() for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_generic_numeric_id"):
-            data[col_display_name] = [f"{random.randint(1000, 9999)}{random.randint(1000, 9999)}" for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_room_number_pattern"):
-            data[col_display_name] = [f"{random.randint(1, 20)}{random.choice(['A', 'B', 'C', 'D'])}" for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_percentage_pattern"):
-            constraint = schema_details_for_canonical.get("constraint", "0-100")
-            min_val, max_val = map(int, constraint.split('-'))
-            data[col_display_name] = [f"{random.randint(min_val, max_val)}%" for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_measurement_pattern"):
-            constraint = schema_details_for_canonical.get("constraint", "1-100")
-            unit = schema_details_for_canonical.get("unit", "")
-            min_val, max_val = map(int, constraint.split('-'))
-            data[col_display_name] = [f"{random.randint(min_val, max_val)} {unit}".strip() for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_reference_number_pattern"):
-            data[col_display_name] = [f"REF{random.randint(10000, 99999)}{random.randint(100, 999)}" for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_faker_sentence"):
-            data[col_display_name] = [fake.sentence() for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_faker_paragraph"):
-            data[col_display_name] = [fake.paragraph(nb_sentences=3) for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_faker_user_name"):
-            data[col_display_name] = [fake.user_name() for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_faker_latitude"):
-            data[col_display_name] = [fake.latitude() for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_faker_longitude"):
-            data[col_display_name] = [fake.longitude() for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_faker_color_name"):
-            data[col_display_name] = [fake.color_name() for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_doi_pattern"):
-            data[col_display_name] = [f"10.{random.randint(1000,9999)}/{''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=6))}" for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_generic_alphanum_id"):
-            prefix = schema_details_for_canonical.get("prefix", "")
-            data[col_display_name] = [f"{prefix}{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=8))}" for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_keywords_list"):
-            data[col_display_name] = [", ".join(fake.words(nb=random.randint(2,5))) for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_tracking_number_pattern"):
-            data[col_display_name] = [f"{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=3))}{random.randint(100000000, 999999999)}{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=2))}" for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_dimension_pattern"):
-            data[col_display_name] = [f"{random.randint(10,100)}x{random.randint(10,100)}x{random.randint(5,50)} cm" for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_flight_number_pattern"):
-            data[col_display_name] = [f"{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=2))}{random.randint(100, 9999)}" for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_multi_name"): # For author lists
-            data[col_display_name] = ["; ".join([fake.name() for _ in range(random.randint(1,4))]) for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_multi_category"): # For hashtags
-            categories = schema_details_for_canonical.get("constraint", "").split(',')
-            if categories and categories[0]: # Check if categories list is not empty or just an empty string
-                data[col_display_name] = [", ".join(random.sample(categories, k=random.randint(1, min(3, len(categories))))) for _ in range(num_rows)]
-            else: # Fallback if constraint is empty for multi_category
-                data[col_display_name] = [fake.word() for _ in range(num_rows)]
-        elif schema_details_for_canonical.get("is_faker_city_if_empty_constraint"):
-            categories = schema_details_for_canonical.get("constraint", "").split(',')
-            if categories and categories[0] and categories[0].strip():
-                data[col_display_name] = [random.choice(categories) for _ in range(num_rows)]
-            else:
-                data[col_display_name] = [fake.word() for _ in range(num_rows)]
+        # --- NEW: Dispatch Logic for Canonical-Specific Generation ---
+        canonical_generator_map = {
+            "is_faker_city": lambda: [fake.city() for _ in range(num_rows)],
+            "is_faker_state": lambda: [fake.state() for _ in range(num_rows)],
+            "is_faker_country": lambda: [fake.country() for _ in range(num_rows)],
+            "is_faker_company_with_suffix_list": lambda: [f"{fake.company()} {random.choice(schema_details_for_canonical['suffix_from_list'])}" for _ in range(num_rows)], # Combined check
+            "is_faker_company": lambda: [f"{schema_details_for_canonical.get('prefix', '').rstrip()} {fake.company()} {schema_details_for_canonical.get('suffix', '').lstrip()}".strip() for _ in range(num_rows)], # For company w/ prefix/suffix
+            "is_faker_postcode": lambda: [fake.postcode() for _ in range(num_rows)],
+            "is_faker_currency_code": lambda: [fake.currency_code() for _ in range(num_rows)],
+            "is_faker_job": lambda: [fake.job() for _ in range(num_rows)],
+            "is_generic_numeric_id": lambda: [f"{random.randint(1000, 9999)}{random.randint(1000, 9999)}" for _ in range(num_rows)],
+            "is_room_number_pattern": lambda: [f"{random.randint(1, 20)}{random.choice(['A', 'B', 'C', 'D'])}" for _ in range(num_rows)],
+            "is_percentage_pattern": lambda: [f"{random.randint(*map(int, schema_details_for_canonical.get('constraint', '0-100').split('-')))}%" for _ in range(num_rows)],
+            "is_measurement_pattern": lambda: [f"{random.randint(*map(int, schema_details_for_canonical.get('constraint', '1-100').split('-')))} {schema_details_for_canonical.get('unit', '').strip()}" for _ in range(num_rows)],
+            "is_reference_number_pattern": lambda: [f"REF{random.randint(10000, 99999)}{random.randint(100, 999)}" for _ in range(num_rows)],
+            "is_faker_sentence": lambda: [fake.sentence() for _ in range(num_rows)],
+            "is_faker_paragraph": lambda: [fake.paragraph(nb_sentences=3) for _ in range(num_rows)],
+            "is_faker_user_name": lambda: [fake.user_name() for _ in range(num_rows)],
+            "is_faker_latitude": lambda: [fake.latitude() for _ in range(num_rows)],
+            "is_faker_longitude": lambda: [fake.longitude() for _ in range(num_rows)],
+            "is_faker_color_name": lambda: [fake.color_name() for _ in range(num_rows)],
+            "is_doi_pattern": lambda: [f"10.{random.randint(1000, 9999)}/{''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=6))}" for _ in range(num_rows)],
+            "is_generic_alphanum_id": lambda: [f"{schema_details_for_canonical.get('prefix', '')}{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=8))}" for _ in range(num_rows)],
+            "is_keywords_list": lambda: [", ".join(fake.words(nb=random.randint(2, 5))) for _ in range(num_rows)],
+            "is_tracking_number_pattern": lambda: [f"{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=3))}{random.randint(100000000, 999999999)}{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=2))}" for _ in range(num_rows)],
+            "is_dimension_pattern": lambda: [f"{random.randint(10, 100)}x{random.randint(10, 100)}x{random.randint(5, 50)} cm" for _ in range(num_rows)],
+            "is_flight_number_pattern": lambda: [f"{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=2))}{random.randint(100, 9999)}" for _ in range(num_rows)],
+            "is_multi_name": lambda: ["; ".join([fake.name() for _ in range(random.randint(1, 4))]) for _ in range(num_rows)],
+            "is_multi_category": lambda: [", ".join(random.sample(schema_details_for_canonical['constraint'].split(','), k=random.randint(1, min(3, len(schema_details_for_canonical['constraint'].split(',')))))) for _ in range(num_rows)] if schema_details_for_canonical['constraint'] else [fake.word() for _ in range(num_rows)],
+            "is_faker_city_if_empty_constraint": lambda: [random.choice(schema_details_for_canonical['constraint'].split(',')) for _ in range(num_rows)] if schema_details_for_canonical['constraint'] and schema_details_for_canonical['constraint'].strip() else [fake.word() for _ in range(num_rows)],
+        }
+        
+        # Check combined condition for company + suffix list *before* general company name generation
+        if schema_details_for_canonical.get("suffix_from_list") and schema_details_for_canonical.get("is_faker_company"):
+            generator_key = "is_faker_company_with_suffix_list"
+        else:
+            # Otherwise find the first key that matches in schema_details_for_canonical
+            generator_key = next((key for key in canonical_generator_map if schema_details_for_canonical.get(key)), None)
+        
+        if generator_key:
+            data[col_display_name] = canonical_generator_map[generator_key]()
 
         else:
             # For types like "name" that might have prefix/suffix, pass the schema_details
@@ -1203,7 +1323,112 @@ VALUE_GENERATOR_FUNCTIONS = {
     "ifsc": _generate_ifsc_value,
     "upi": _generate_upi_value,
     "animal_name": _generate_animal_name_value, # Registering the new generator
-}
+}# ... (other imports)
+from datetime import datetime # Already imported, ensure it's available
+
+# ... (rest of your existing code)
+
+# --- NEW: Explainability Report Function ---
+def generate_explainability_pdf(generation_context_info, generated_dfs_info):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, f"{APP_NAME} - Data Generation Explainability Report", 0, 1, "C")
+    pdf.set_font("Arial", size=10)
+    pdf.cell(0, 7, f"Report Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", 0, 1, "C")
+    pdf.ln(5)
+
+    # --- Generation Overview ---
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 10, "1. Generation Overview", 0, 1)
+    pdf.set_font("Arial", size=10)
+    pdf.multi_cell(0, 5, f"Generation Method: {generation_context_info.get('method', 'N/A')}")
+    pdf.multi_cell(0, 5, f"Reproducibility (Fixed Seed Used): {'Yes' if st.session_state.get('use_fixed_seed', False) else 'No'}")
+    pdf.ln(3)
+
+    # --- Input Configuration ---
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 10, "2. Input Configuration", 0, 1)
+    pdf.set_font("Arial", size=10)
+
+    if generation_context_info.get('method') == "Text Prompt":
+        pdf.multi_cell(0, 5, f"User Prompt: {st.session_state.get('prompt', 'N/A')}")
+    elif generation_context_info.get('method') == "Smart Schema Editor":
+        pdf.multi_cell(0, 5, f"Number of Root Rows Requested: {generation_context_info.get('num_rows_root', 'N/A')}")
+        default_pii_strategy = PII_HANDLING_STRATEGIES.get(st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake"), "N/A")
+        pdf.multi_cell(0, 5, f"Default PII Handling Strategy: {default_pii_strategy}")
+
+        pdf.set_font("Arial", "B", 10)
+        pdf.cell(0, 7, "Table Schemas:", 0, 1)
+        pdf.set_font("Arial", size=9)
+        for table_name, fields in st.session_state.get('table_schemas', {}).items():
+            pdf.multi_cell(0, 5, f"  Table: {table_name}")
+            for field in fields:
+                pii_strat = PII_HANDLING_STRATEGIES.get(field.get('pii_handling', default_pii_strategy), "N/A")
+                pdf.multi_cell(0, 5, f"    - Field: {field['name']}, Type: {FIELD_TYPES.get(field['type'], field['type'])}, Constraint: '{field['constraint']}', PII: {pii_strat}")
+            pdf.ln(1)
+
+        if st.session_state.get('relationships'):
+            pdf.set_font("Arial", "B", 10)
+            pdf.cell(0, 7, "Relationships:", 0, 1)
+            pdf.set_font("Arial", size=9)
+            for rel in st.session_state['relationships']:
+                pdf.multi_cell(0, 5, f"  - {rel['parent_table']}.{rel['parent_pk']} (Parent) -> {rel['child_table']}.{rel['child_fk']} (Child)")
+            pdf.ln(1)
+
+        if st.session_state.get('edge_cases'):
+            pdf.set_font("Arial", "B", 10)
+            pdf.cell(0, 7, "Edge Cases Defined:", 0, 1)
+            pdf.set_font("Arial", size=9)
+            for i, rule in enumerate(st.session_state['edge_cases']):
+                pdf.multi_cell(0, 5, f"  Rule {i+1} (Applied to ~{rule.get('percentage', 0)}% of relevant rows):")
+                for cond in rule.get('conditions', []):
+                    pdf.multi_cell(0, 5, f"    - If {cond.get('table', 'N/A')}.{cond.get('field', 'N/A')} {cond.get('operator', 'N/A')} '{cond.get('value', 'N/A')}'")
+            pdf.ln(1)
+
+    elif generation_context_info.get('method') == "File-based Generation":
+        pdf.multi_cell(0, 5, f"Original Uploaded File: {st.session_state.get('uploaded_file_name_tab3', 'N/A')}")
+        pdf.multi_cell(0, 5, f"Number of Synthetic Rows Generated: {generation_context_info.get('num_synthetic_rows_from_file', 'N/A')}")
+        pdf.multi_cell(0, 5, "Synthesis Strategy: PII fields were faked. Numeric columns based on original min/max values. Other categorical/object columns sampled from original distributions.")
+    pdf.ln(3)
+
+    # --- Data Generation Process Highlights ---
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 10, "3. Data Generation Process Highlights", 0, 1)
+    pdf.set_font("Arial", size=10)
+    pdf.multi_cell(0, 5, "PII Handling: Sensitive data types (e.g., names, emails, phone numbers, IDs) are generated using realistic but fake values via the Faker library, or processed according to the specified PII handling strategy (Masked, Redacted, Scrambled).")
+    pdf.multi_cell(0, 5, "Core Engine: Data generation leverages Python libraries including Faker (for realistic fake data), Pandas (for data manipulation), and NumPy/random (for numerical and choice-based generation).")
+    # Add more details here if you implement more sophisticated logging
+    pdf.ln(3)
+
+    # --- Output Summary ---
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 10, "4. Output Summary", 0, 1)
+    pdf.set_font("Arial", size=10)
+    if generated_dfs_info:
+        for table_name, info in generated_dfs_info.items():
+            pdf.multi_cell(0, 5, f"Table: {table_name}, Rows: {info['rows']}, Columns: {info['cols']}")
+    else:
+        pdf.multi_cell(0, 5, "No dataset information available or generation was not completed for all tables.")
+    pdf.ln(3)
+
+    # --- Notes on Trust & Transparency ---
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(0, 10, "5. Notes on Trust & Transparency", 0, 1)
+    pdf.set_font("Arial", "I", 10)
+    pdf.multi_cell(0, 5, "- The generated data is synthetic and intended for purposes like software testing, data analysis prototyping, and machine learning model training where real sensitive data cannot be used.")
+    pdf.multi_cell(0, 5, "- While NullByte AI strives to create realistic and diverse datasets, synthetic data may not capture all nuances and complex correlations of real-world data.")
+    pdf.multi_cell(0, 5, "- Scores from the Ethical AI Dashboard (Bias, PII Risk, Compliance) are illustrative and aim to provide guidance. Thorough validation is recommended for specific use cases.")
+    pdf.multi_cell(0, 5, "- Always ensure compliance with relevant data privacy regulations (e.g., GDPR, CCPA, DPDP Act) when handling any data, including synthetic data that might resemble PII structures.")
+
+    # Output the PDF to a byte string.
+    # 'latin-1' is commonly used for FPDF string output. If you encounter encoding issues with special characters,
+    # you might need to ensure your FPDF setup correctly handles UTF-8 and adjust encoding here if necessary.
+    pdf_bytes = pdf.output(dest='S').encode('latin-1')
+    return pdf_bytes
+
+# ... (rest of your existing code)
+
 
 def get_field_pii_strategy(field_schema, global_default_strategy):
     """Determines the PII handling strategy for a field."""
@@ -1252,6 +1477,242 @@ def generate_value(field_schema, edge_condition=None):
         return generator_func(constraint, field_schema["name"], current_pii_strategy, edge_condition=edge_condition)
     st.warning(f"Unknown field type '{field_type}' for field '{field_schema['name']}'. Defaulting to N/A.")
     return "N/A" # Fallback for unknown types
+
+# --- Helper for Dependency Handling ---
+def _get_dependent_value(current_row_data, dependent_field_name_lower):
+    """Retrieves a value from current_row_data based on a lowercase dependent field name."""
+    key = next((k for k in current_row_data if k.lower() == dependent_field_name_lower), None)
+    return current_row_data.get(key) if key else None
+
+def _handle_discharge_date_dependency(field_schema, current_row_data, edge_condition):
+    admission_date_str = _get_dependent_value(current_row_data, "admission date")
+    if admission_date_str and isinstance(admission_date_str, str):
+        try:
+            admission_date = datetime.strptime(admission_date_str, "%Y-%m-%d")
+            if edge_condition and edge_condition.get('operator') == '==':
+                return str(edge_condition['value'])
+            discharge_date = admission_date + timedelta(days=random.randint(1, 30))
+            return discharge_date.strftime("%Y-%m-%d")
+        except ValueError:
+            st.warning(f"Admission Date '{admission_date_str}' for '{field_schema['name']}' dependency is not a valid date. Generating independently.")
+    else:
+        st.warning(f"Admission Date not found or invalid for '{field_schema['name']}' dependency. Generating independently.")
+    return None # Indicates dependency could not be resolved, fall back
+
+def _handle_city_dependency(field_schema, current_row_data, edge_condition):
+    state_val = _get_dependent_value(current_row_data, "state")
+    cities_for_state = STATE_CITY_MAP.get(state_val)
+    if cities_for_state:
+        if edge_condition and edge_condition.get('operator') == '==':
+            edge_val = str(edge_condition['value'])
+            return edge_val if edge_val in cities_for_state else random.choice(cities_for_state)
+        return random.choice(cities_for_state)
+    return None # Fallback
+
+def _handle_currency_dependency(field_schema, current_row_data, edge_condition):
+    country_val = _get_dependent_value(current_row_data, "country")
+    currency_code = COUNTRY_CURRENCY_MAP.get(country_val)
+    if currency_code:
+        if edge_condition and edge_condition.get('operator') == '==':
+            return str(edge_condition['value'])
+        return currency_code
+    return None # Fallback
+
+# --- Dispatch Dictionary for Dependency Handlers ---
+# Maps (field_to_generate_lower, depends_on_field_lower) to handler function
+DEPENDENCY_HANDLERS = {
+    ("discharge date", "admission date"): _handle_discharge_date_dependency,
+    ("city", "state"): _handle_city_dependency,
+    ("currency", "country"): _handle_currency_dependency,
+    # Add more dependency handlers here as needed
+    # Example: ("dependent field name lower", "primary field name lower"): _handle_custom_dependency
+}
+
+
+def generate_value_with_dependencies(field_schema, current_row_data, edge_condition=None):
+    """
+    Generate a value for a field, considering dependencies on other fields in the current_row_data.
+    Exclusively used by the Smart Schema Editor.
+    """
+    field_type = field_schema["type"]
+    constraint = field_schema["constraint"]
+    field_name = field_schema["name"] # Original case field name
+    field_name_lower = field_name.lower() # Lowercase for matching
+
+    default_pii_strategy = st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")
+    current_pii_strategy = get_field_pii_strategy(field_schema, default_pii_strategy)
+
+    # --- NEW: Dependency Handling using Dispatch Dictionary ---
+    for (fn_to_gen_lower, dep_fn_lower), handler_func in DEPENDENCY_HANDLERS.items():
+        if field_name_lower == fn_to_gen_lower:
+            # Check if the dependent field actually exists in the current row data
+            if any(k.lower() == dep_fn_lower for k in current_row_data.keys()):
+                generated_value = handler_func(field_schema, current_row_data, edge_condition)
+                if generated_value is not None: # Handler successfully generated a value
+                    return generated_value
+                # If handler returned None, it means it couldn't satisfy the dependency (e.g., invalid dependent value)
+                # We will then fall through to standard/non-dependent generation for this field.
+            break # Found the field to generate, no need to check other dependency rules for it
+
+    # --- Fallback to standard generation if no specific dependency handled ---
+    # Special handling for name with prefix/suffix (needs field_schema)
+    if field_type == "name":
+        base_name = fake.name()
+        prefix_options = field_schema.get("prefix_options")
+        prefix = field_schema.get("prefix", "")
+        if prefix_options and isinstance(prefix_options, list) and prefix_options:
+            prefix = random.choice(prefix_options)
+        if prefix and not prefix.endswith(" "): prefix += " "
+        suffix = field_schema.get("suffix", "")
+        if suffix and not suffix.startswith(" "): suffix = " " + suffix
+        val = f"{prefix}{base_name}{suffix}".strip()
+        return _apply_pii_strategy_to_value(val, "name", current_pii_strategy)
+    elif field_type == "date" and constraint == "datetime":
+        dt_obj = fake.date_time_this_year()
+        return dt_obj.strftime("%Y-%m-%d %H:%M:%S")
+
+    generator_func = VALUE_GENERATOR_FUNCTIONS.get(field_type)
+    if generator_func:
+        return generator_func(constraint, field_name, current_pii_strategy, edge_condition=edge_condition)
+
+    st.warning(f"Unknown field type '{field_type}' for field '{field_name}' in dependency generator. Defaulting to N/A.")
+    return "N/A"
+
+
+def get_generation_order(table_schemas, relationships):
+    """Determines the order to generate tables based on dependencies (PK/FK)."""
+    from collections import defaultdict, deque
+
+    graph = defaultdict(list)
+    in_degree = defaultdict(int)
+    all_tables = list(table_schemas.keys())
+
+    for table in all_tables:
+        in_degree[table] = 0 # Initialize in_degree for all tables
+
+    for rel in relationships:
+        parent = rel['parent_table']
+        child = rel['child_table']
+        if parent in all_tables and child in all_tables:
+            graph[parent].append(child)
+            in_degree[child] += 1
+        else:
+            st.warning(f"Relationship {parent}->{child} involves undefined tables. Skipping this relationship for ordering.")
+
+    queue = deque([table for table in all_tables if in_degree[table] == 0])
+    generation_order = []
+
+    while queue:
+        table = queue.popleft()
+        generation_order.append(table)
+        for neighbor in graph[table]:
+            in_degree[neighbor] -= 1
+            if in_degree[neighbor] == 0:
+                queue.append(neighbor)
+
+    if len(generation_order) != len(all_tables):
+        st.error("Cycle detected in table relationships or some tables are unreachable. Cannot determine generation order.")
+        # Identify missing tables for better error message
+        missing_tables = set(all_tables) - set(generation_order)
+        st.error(f"Problematic tables might include: {', '.join(missing_tables)}")
+        return None
+
+    return generation_order
+
+def generate_hierarchical_data(table_schemas, relationships, num_rows_root, edge_cases_all, pii_strategy_global):
+    """Generates data for multiple related tables."""
+    generation_order = get_generation_order(table_schemas, relationships)
+    if not generation_order:
+        return None # Error already shown by get_generation_order
+
+    generated_data_frames = {}
+    min_children_per_parent = 1 # Configurable: min number of child records per parent
+    max_children_per_parent = 3 # Configurable: max number of child records per parent
+
+    for table_name in generation_order:
+        current_schema_fields = table_schemas[table_name]
+        table_rows_data = []
+        
+        parent_relationships_for_this_table = [r for r in relationships if r['child_table'] == table_name]
+        num_rows_for_this_table = 0
+        parent_pk_map_for_rows = [] # Stores [{fk_field: parent_pk_value}, ...] for each row
+
+        if not parent_relationships_for_this_table: # It's a root table
+            num_rows_for_this_table = num_rows_root
+            for _ in range(num_rows_for_this_table):
+                parent_pk_map_for_rows.append({})
+        else:
+            # Simplified: Iterate through the first parent's rows and generate children
+            primary_parent_rel = parent_relationships_for_this_table[0]
+            parent_df = generated_data_frames.get(primary_parent_rel['parent_table'])
+            if parent_df is None or parent_df.empty:
+                st.error(f"Parent table '{primary_parent_rel['parent_table']}' for '{table_name}' has no data. Cannot generate child rows.")
+                continue
+
+            for _, parent_row in parent_df.iterrows():
+                num_children = random.randint(min_children_per_parent, max_children_per_parent)
+                for _ in range(num_children):
+                    fk_map = {}
+                    for rel in parent_relationships_for_this_table:
+                        current_parent_df = generated_data_frames.get(rel['parent_table'])
+                        if current_parent_df is not None and rel['parent_pk'] in current_parent_df.columns:
+                            # If this rel is the primary_parent_rel, use parent_row directly
+                            # Otherwise, for secondary parents, pick a random PK (simplification for now)
+                            pk_val_to_use = parent_row[rel['parent_pk']] if rel == primary_parent_rel else random.choice(current_parent_df[rel['parent_pk']].tolist())
+                            fk_map[rel['child_fk']] = pk_val_to_use
+                        else:
+                            st.warning(f"Could not find PK '{rel['parent_pk']}' in generated parent table '{rel['parent_table']}' for FK '{rel['child_fk']}' in '{table_name}'. FK will be None.")
+                            fk_map[rel['child_fk']] = None 
+                    parent_pk_map_for_rows.append(fk_map)
+            num_rows_for_this_table = len(parent_pk_map_for_rows)
+
+        for i in range(num_rows_for_this_table):
+            row_data = {}
+            current_fk_map = parent_pk_map_for_rows[i]
+            for fk_field, pk_value in current_fk_map.items():
+                row_data[fk_field] = pk_value
+
+            applied_edge_rule_for_row = None
+            potential_rules_for_row = [
+                rule for rule in edge_cases_all 
+                if rule.get('percentage', 0.0) > 0 and random.random() < (rule.get('percentage', 0.0) / 100.0)
+            ]
+            if potential_rules_for_row:
+                applied_edge_rule_for_row = random.choice(potential_rules_for_row)
+
+            for field_schema in current_schema_fields:
+                field_name = field_schema["name"]
+                if field_name in row_data: continue # Skip FKs already set
+                
+                field_specific_edge_condition = None
+                if applied_edge_rule_for_row:
+                    for cond in applied_edge_rule_for_row.get('conditions', []):
+                        if cond.get('table') == table_name and cond.get('field') == field_name:
+                            field_specific_edge_condition = cond
+                            break
+                row_data[field_name] = generate_value_with_dependencies(field_schema, row_data, edge_condition=field_specific_edge_condition)
+            
+            table_rows_data.append(row_data)
+
+        df = pd.DataFrame(table_rows_data)
+        
+        for field_s in current_schema_fields: # PII Scrambling
+            is_sensitive = field_s["type"] in ["email", "phone", "aadhaar", "pan", "passport", "voterid", "ifsc", "upi", "name", "address"]
+            if is_sensitive and field_s.get("pii_handling") == "scramble_column" and field_s["name"] in df.columns:
+                col_to_scramble = df[field_s["name"]].copy()
+                if col_to_scramble.nunique() > 1:
+                    np.random.shuffle(col_to_scramble.values)
+                    df[field_s["name"]] = col_to_scramble
+
+        generated_data_frames[table_name] = df
+        if df.empty and num_rows_for_this_table > 0 :
+            st.warning(f"Generated empty DataFrame for table '{table_name}' despite expecting {num_rows_for_this_table} rows.")
+        elif not df.empty:
+            detected_dpdp_for_table = [f_schema["name"] for f_schema in current_schema_fields if is_dpdp_pii(f_schema["name"])]
+            if detected_dpdp_for_table:
+                st.info(f"DPDP sensitive fields in '{table_name}': {', '.join(detected_dpdp_for_table)}")
+
+    return generated_data_frames
 
 # The generate_domain_specific_data function is now effectively merged into generate_synthetic_data
 
@@ -1386,18 +1847,36 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
     st.subheader("🧠 Smart Schema Editor")
     st.markdown("Define and customize your data schema with field types and constraints.")
 
-    # Initialize schema state if not already present
-    if 'schema' not in st.session_state:
-        st.session_state.schema = []
+    # --- Table Management ---
+    st.markdown("---")
+    st.subheader("Tables & Relationships")
     
-    # Pre-populate from synthetic_df if schema is empty and df is available, and no template action pending
-    if not st.session_state.initial_schema_populated and synthetic_df is not None and not st.session_state.schema:
-            # Clear any previous schema if pre-populating from a new source
-            # This check might be redundant now due to initial_schema_populated flag
-            # if st.session_state.schema and synthetic_df.columns.tolist() != [f['name'] for f in st.session_state.schema]:
-            #     st.session_state.schema = []
+    if not st.session_state.table_schemas: # Ensure at least one table
+        st.session_state.table_schemas["Table1"] = []
+        st.session_state.active_table_name = "Table1"
+        st.session_state.initial_schema_populated = False
 
-            # Pre-populate schema with columns from synthetic_df
+    if st.session_state.active_table_name is None and st.session_state.table_schemas:
+        st.session_state.active_table_name = list(st.session_state.table_schemas.keys())[0]
+
+    table_management_cols = st.columns([2,1,1])
+    with table_management_cols[0]:
+        new_table_name = st.text_input("New Table Name", key="new_table_name_input")
+    with table_management_cols[1]:
+        if st.button("➕ Add Table", key="add_table_button", use_container_width=True):
+            if new_table_name and new_table_name not in st.session_state.table_schemas:
+                st.session_state.table_schemas[new_table_name] = []
+                st.session_state.active_table_name = new_table_name
+                st.session_state.initial_schema_populated = False
+                st.rerun()
+            elif not new_table_name: st.warning("Table name cannot be empty.")
+            else: st.warning(f"Table '{new_table_name}' already exists.")
+    
+    active_table_schema = st.session_state.table_schemas.get(st.session_state.active_table_name, [])
+
+    # Pre-populate from synthetic_df if schema is empty and df is available, and no template action pending
+    # This logic now applies to the active_table_schema
+    if not st.session_state.initial_schema_populated and synthetic_df is not None and not active_table_schema and st.session_state.active_table_name:
             for col_name_from_df in synthetic_df.columns:
                 inferred_type = "string" # Default
                 inferred_constraint = ""
@@ -1442,7 +1921,7 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
                 field_details_for_schema.setdefault("constraint", "")
                 field_details_for_schema["pii_handling"] = st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")
 
-                st.session_state.schema.append(field_details_for_schema)
+                st.session_state.table_schemas[st.session_state.active_table_name].append(field_details_for_schema)
             st.session_state.initial_schema_populated = True # Mark as populated
 
     # --- Template Selector ---
@@ -1453,7 +1932,7 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
 
     st.markdown("---")
     newly_selected_template = st.selectbox(
-        "Load Schema Template (optional, will replace current schema)",
+        f"Load Schema Template for '{st.session_state.active_table_name}' (optional, will replace its schema)",
         options=template_options,
         index=template_options.index(st.session_state.selected_template_name),
         key="template_selector_key"
@@ -1463,9 +1942,9 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
         st.session_state.selected_template_name = newly_selected_template
         if newly_selected_template != "None (Custom Schema)":
             template_content = SCHEMA_TEMPLATES[newly_selected_template]
-            st.session_state.schema = [] # Clear current schema
+            st.session_state.table_schemas[st.session_state.active_table_name] = [] # Clear active table's schema
             default_global_pii_strategy = st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")
-            for field_template in template_content:
+            for field_template in template_content: # template_content is a list of field dicts
                 new_field = field_template.copy()
                 # If template suggests a canonical type, try to get its full details
                 canonical_suggestion = new_field.pop("_canonical_suggestion", None)
@@ -1477,38 +1956,77 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
 
                 is_sensitive = new_field["type"] in ["email", "phone", "aadhaar", "pan", "passport", "voterid", "ifsc", "upi", "name", "address"]
                 new_field["pii_handling"] = new_field.get("pii_handling", default_global_pii_strategy if is_sensitive else "realistic_fake")
-                st.session_state.schema.append(new_field)
-            st.session_state.schema_df = None # Clear previously generated data
+                st.session_state.table_schemas[st.session_state.active_table_name].append(new_field)
+            st.session_state.generated_data_frames = {} # Clear previously generated multi-table data
             st.session_state.initial_schema_populated = True # Mark as populated (by template)
         else: # User selected "None (Custom Schema)"
-            st.session_state.schema = [] # Clear schema
-            st.session_state.schema_df = None
+            st.session_state.table_schemas[st.session_state.active_table_name] = [] # Clear active table's schema
+            st.session_state.generated_data_frames = {}
             st.session_state.initial_schema_populated = False # Allow re-inference if data is available
         st.rerun()
+
+    table_selector_cols = st.columns([2,1])
+    with table_selector_cols[0]:
+        if st.session_state.table_schemas:
+            selected_active_table = st.selectbox(
+                "Edit Schema For Table:",
+                options=list(st.session_state.table_schemas.keys()),
+                index=list(st.session_state.table_schemas.keys()).index(st.session_state.active_table_name) if st.session_state.active_table_name in st.session_state.table_schemas else 0,
+                key="active_table_selector"
+            )
+            if selected_active_table != st.session_state.active_table_name:
+                st.session_state.active_table_name = selected_active_table
+                st.session_state.initial_schema_populated = False 
+                st.rerun()
+    with table_selector_cols[1]:
+        if st.session_state.active_table_name and len(st.session_state.table_schemas) > 1:
+            if st.button(f"🗑️ Delete Table '{st.session_state.active_table_name}'", key="delete_active_table", use_container_width=True):
+                del st.session_state.table_schemas[st.session_state.active_table_name]
+                st.session_state.relationships = [
+                    r for r in st.session_state.relationships 
+                    if r['parent_table'] != st.session_state.active_table_name and r['child_table'] != st.session_state.active_table_name
+                ]
+                st.session_state.active_table_name = list(st.session_state.table_schemas.keys())[0] if st.session_state.table_schemas else None
+                st.session_state.initial_schema_populated = False
+                st.rerun()
+        elif len(st.session_state.table_schemas) <= 1:
+            st.caption("Cannot delete the last table.")
+
     st.markdown("---")
+    st.subheader(f"Field Definitions for Table: '{st.session_state.active_table_name}'")
+
+    if not st.session_state.active_table_name:
+        st.info("Please add or select a table to define its fields.")
+        return 
+
+    if st.session_state.active_table_name not in st.session_state.table_schemas:
+        st.session_state.table_schemas[st.session_state.active_table_name] = []
+
+    current_active_schema_fields = st.session_state.table_schemas[st.session_state.active_table_name]
+
     # Display existing schema fields
-    for i, field in enumerate(st.session_state.schema):
+    for i, field in enumerate(current_active_schema_fields):
         is_sensitive_field = field["type"] in ["email", "phone", "aadhaar", "pan", "passport", "voterid", "ifsc", "upi", "name", "address"]
         cols = st.columns([3, 2, 2, 2, 1] if is_sensitive_field else [3, 2, 3, 1]) # Adjust columns based on sensitivity
 
         with cols[0]:
-            st.session_state.schema[i]["name"] = cols[0].text_input(
+            current_active_schema_fields[i]["name"] = cols[0].text_input(
                 f"Field Name",
                 value=field["name"],
-                key=f"field_name_{i}"
+                key=f"field_name_{st.session_state.active_table_name}_{i}"
             )
 
         with cols[1]:
-            st.session_state.schema[i]["type"] = cols[1].selectbox(
+            current_active_schema_fields[i]["type"] = cols[1].selectbox(
                 f"Field Type",
                 options=list(FIELD_TYPES.keys()),
                 format_func=lambda x: FIELD_TYPES[x],
                 index=list(FIELD_TYPES.keys()).index(field["type"]) if field["type"] in FIELD_TYPES else 0,
-                key=f"field_type_{i}"
+                key=f"field_type_{st.session_state.active_table_name}_{i}"
             )
 
         with cols[2]:
-            field_type = st.session_state.schema[i]["type"]
+            field_type = current_active_schema_fields[i]["type"]
             placeholder = ""
 
             if field_type == "int" or field_type == "float":
@@ -1518,38 +2036,38 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
             elif field_type == "category":
                 placeholder = "e.g., Option A, Option B, Option C"
 
-            st.session_state.schema[i]["constraint"] = cols[2].text_input(
+            current_active_schema_fields[i]["constraint"] = cols[2].text_input(
                 f"Constraints",
                 value=field["constraint"],
                 placeholder=placeholder,
-                key=f"field_constraint_{i}"
+                key=f"field_constraint_{st.session_state.active_table_name}_{i}"
             )
 
         if is_sensitive_field:
             with cols[3]:
                 # Ensure pii_handling key exists for old schema items
-                if "pii_handling" not in st.session_state.schema[i]:
-                     st.session_state.schema[i]["pii_handling"] = st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")
+                if "pii_handling" not in current_active_schema_fields[i]:
+                     current_active_schema_fields[i]["pii_handling"] = st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")
 
-                st.session_state.schema[i]["pii_handling"] = cols[3].selectbox(
+                current_active_schema_fields[i]["pii_handling"] = cols[3].selectbox(
                     "PII Handling",
                     options=list(PII_HANDLING_STRATEGIES.keys()),
                     format_func=lambda x: PII_HANDLING_STRATEGIES[x],
-                    index=list(PII_HANDLING_STRATEGIES.keys()).index(st.session_state.schema[i]["pii_handling"]),
-                    key=f"pii_handling_{i}",
+                    index=list(PII_HANDLING_STRATEGIES.keys()).index(current_active_schema_fields[i]["pii_handling"]),
+                    key=f"pii_handling_{st.session_state.active_table_name}_{i}",
                     help="Choose how to handle this sensitive field."
                 )
 
         delete_button_col_index = 4 if is_sensitive_field else 3
         with cols[delete_button_col_index]:
-            if cols[delete_button_col_index].button("Delete", key=f"delete_{i}"):
-                st.session_state.schema.pop(i)
+            if cols[delete_button_col_index].button("Delete", key=f"delete_{st.session_state.active_table_name}_{i}"):
+                current_active_schema_fields.pop(i)
                 st.rerun()
 
     # Add new field button
     if st.button("➕ Add Field"):
-        st.session_state.schema.append({
-            "name": f"Field{len(st.session_state.schema) + 1}",
+        current_active_schema_fields.append({
+            "name": f"Field{len(current_active_schema_fields) + 1}",
             "type": "string",
             "constraint": "",
             "pii_handling": st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake") # Default for new fields
@@ -1557,14 +2075,15 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
         st.rerun()
 
     # --- Edge Case Injection UI ---
+    # This section needs to be updated to select a table for the field condition
     st.markdown("---")
     st.subheader("🧪 Edge Case Injection")
     st.markdown("Define specific scenarios to inject into a percentage of your dataset.")
 
     if 'edge_cases' not in st.session_state:
         st.session_state.edge_cases = []
-
-    schema_field_names = [field['name'] for field in st.session_state.schema if field['name']]
+    
+    all_table_names_for_edge_case = list(st.session_state.table_schemas.keys())
     OPERATORS = ['==', '!=', '>', '<', '>=', '<=']
 
     for i, edge_rule in enumerate(st.session_state.edge_cases):
@@ -1572,7 +2091,7 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
         rule_cols = st.columns([2, 1, 1])
         edge_rule['percentage'] = rule_cols[0].number_input(
             "Percentage of rows",
-            min_value=0.0, max_value=100.0,
+            min_value=0.0, max_value=100.0, # Corrected: was "Percentage of rows (per table affected by conditions)"
             value=edge_rule.get('percentage', 1.0),
             step=0.1, format="%.1f",
             key=f"edge_perc_{i}"
@@ -1585,28 +2104,43 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
             edge_rule['conditions'] = []
 
         for j, condition in enumerate(edge_rule['conditions']):
-            cond_cols = st.columns([3,2,2,1])
-            condition['field'] = cond_cols[0].selectbox(
-                "Field", schema_field_names,
-                index=schema_field_names.index(condition['field']) if condition['field'] in schema_field_names else 0,
+            cond_cols = st.columns([2, 3, 2, 2, 1]) # Added column for Table selection
+            
+            condition['table'] = cond_cols[0].selectbox(
+                "Table", all_table_names_for_edge_case,
+                index=all_table_names_for_edge_case.index(condition['table']) if condition.get('table') in all_table_names_for_edge_case else 0,
+                key=f"edge_table_{i}_{j}"
+            )
+            
+            selected_table_for_cond = condition.get('table')
+            schema_field_names_for_cond_table = []
+            if selected_table_for_cond and selected_table_for_cond in st.session_state.table_schemas:
+                schema_field_names_for_cond_table = [f['name'] for f in st.session_state.table_schemas[selected_table_for_cond] if f['name']]
+
+            condition['field'] = cond_cols[1].selectbox(
+                "Field", schema_field_names_for_cond_table,
+                index=schema_field_names_for_cond_table.index(condition['field']) if condition.get('field') in schema_field_names_for_cond_table else 0,
                 key=f"edge_field_{i}_{j}"
             )
-            condition['operator'] = cond_cols[1].selectbox(
+            condition['operator'] = cond_cols[2].selectbox(
                 "Operator", OPERATORS,
                 index=OPERATORS.index(condition['operator']) if condition['operator'] in OPERATORS else 0,
                 key=f"edge_op_{i}_{j}"
             )
-            condition['value'] = cond_cols[2].text_input(
+            condition['value'] = cond_cols[3].text_input(
                 "Value", value=condition.get('value', ''),
                 key=f"edge_val_{i}_{j}"
             )
-            if cond_cols[3].button("➖", key=f"del_edge_cond_{i}_{j}"): # Delete condition
+            if cond_cols[4].button("➖", key=f"del_edge_cond_{i}_{j}"):
                 edge_rule['conditions'].pop(j)
                 st.rerun()
 
         if st.button("➕ Add Condition to Rule", key=f"add_edge_cond_{i}"):
-            if schema_field_names: # Only add if there are fields to select
-                edge_rule['conditions'].append({'field': schema_field_names[0], 'operator': '==', 'value': ''})
+            if all_table_names_for_edge_case:
+                default_table_for_new_cond = all_table_names_for_edge_case[0]
+                default_fields_for_new_cond_table = [f['name'] for f in st.session_state.table_schemas.get(default_table_for_new_cond, []) if f['name']]
+                default_field_for_new_cond = default_fields_for_new_cond_table[0] if default_fields_for_new_cond_table else ""
+                edge_rule['conditions'].append({'table': default_table_for_new_cond, 'field': default_field_for_new_cond, 'operator': '==', 'value': ''})
                 st.rerun()
             else:
                 st.warning("Please define schema fields before adding edge case conditions.")
@@ -1616,12 +2150,70 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
         st.session_state.edge_cases.append({'percentage': 1.0, 'conditions': []})
         st.rerun()
 
-    # Number of rows input
+    # --- Relationship Definition UI ---
+    st.markdown("---")
+    st.subheader("🔗 Define Table Relationships (One-to-Many)")
+
+    if not st.session_state.table_schemas or len(st.session_state.table_schemas) < 1:
+        st.info("Define at least one table with fields to set up relationships.")
+    else:
+        all_table_names = list(st.session_state.table_schemas.keys())
+        
+        rel_cols = st.columns(4)
+        parent_table_options = all_table_names
+        selected_parent_table = rel_cols[0].selectbox("Parent Table (One)", parent_table_options, key="rel_parent_table")
+        
+        parent_pk_options = []
+        if selected_parent_table and selected_parent_table in st.session_state.table_schemas:
+            parent_pk_options = [f['name'] for f in st.session_state.table_schemas[selected_parent_table] if f['name']]
+        selected_parent_pk = rel_cols[1].selectbox("Parent Primary Key (PK)", parent_pk_options, key="rel_parent_pk")
+
+        child_table_options = [t for t in all_table_names if t != selected_parent_table] 
+        selected_child_table = rel_cols[2].selectbox("Child Table (Many)", child_table_options, key="rel_child_table")
+
+        child_fk_options = []
+        if selected_child_table and selected_child_table in st.session_state.table_schemas:
+            child_fk_options = [f['name'] for f in st.session_state.table_schemas[selected_child_table] if f['name']]
+        selected_child_fk = rel_cols[3].selectbox("Child Foreign Key (FK)", child_fk_options, key="rel_child_fk")
+
+        if st.button("🔗 Add Relationship", key="add_relationship_button"):
+            if selected_parent_table and selected_parent_pk and selected_child_table and selected_child_fk:
+                if selected_parent_table == selected_child_table:
+                    st.error("Parent and Child tables cannot be the same for a simple one-to-many relationship.")
+                else:
+                    new_relationship = {
+                        "parent_table": selected_parent_table,
+                        "parent_pk": selected_parent_pk,
+                        "child_table": selected_child_table,
+                        "child_fk": selected_child_fk,
+                    }
+                    if new_relationship not in st.session_state.relationships:
+                        st.session_state.relationships.append(new_relationship)
+                        st.success(f"Relationship added: {selected_parent_table}.{selected_parent_pk} -> {selected_child_table}.{selected_child_fk}")
+                        st.rerun()
+                    else:
+                        st.warning("This relationship already exists.")
+            else:
+                st.error("All fields are required to define a relationship.")
+
+        if st.session_state.relationships:
+            st.markdown("**Existing Relationships:**")
+            for i, rel in enumerate(st.session_state.relationships):
+                rel_text = f"{i+1}. **{rel['parent_table']}** (`{rel['parent_pk']}`) → **{rel['child_table']}** (`{rel['child_fk']}`)"
+                del_rel_cols = st.columns([8,1])
+                del_rel_cols[0].markdown(rel_text)
+                if del_rel_cols[1].button("🗑️", key=f"del_rel_{i}"):
+                    st.session_state.relationships.pop(i)
+                    st.rerun()
+
+    # --- Number of rows and PII Strategy (Global for now) ---
+    st.markdown("---")
+    num_rows_help_text = "Number of rows for root/parent tables. Child table rows will be derived."
     num_rows = st.number_input("Number of rows to generate", min_value=1, value=max(1, num_rows), step=1)
 
     # Default PII Handling Strategy
     st.session_state[DEFAULT_PII_STRATEGY_KEY] = st.selectbox(
-        "Default PII Handling Strategy",
+        "Default PII Handling Strategy (for new sensitive fields)",
         options=list(PII_HANDLING_STRATEGIES.keys()),
         format_func=lambda x: PII_HANDLING_STRATEGIES[x],
         index=list(PII_HANDLING_STRATEGIES.keys()).index(st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")),
@@ -1629,142 +2221,101 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
     )
 
     # Generate button
-    if st.button("🔄 Generate Data from Schema", use_container_width=True):
-        # Validate schema
-        invalid_fields = []
-        for field in st.session_state.schema:
-            if not field["name"]:
-                invalid_fields.append("Field name cannot be empty")
-                continue
-
-            if not validate_constraint(field["type"], field["constraint"]) and field["constraint"]:
-                invalid_fields.append(f"Invalid constraint for {field['name']} ({field['type']})")
-
-        if invalid_fields:
-            for error in invalid_fields:
-                st.error(error)
+    if st.button("🔄 Generate Data from All Schemas", use_container_width=True, key="generate_all_schemas_button"):
+        if not st.session_state.table_schemas:
+            st.error("No tables defined. Please add tables and define their schemas.")
         else:
-            # Generate data from schema
-            all_rows_data = []
-            schema_valid = True
-            detected_dpdp = []
-            edge_case_rules = st.session_state.get('edge_cases', [])
-
-            for row_idx in range(num_rows):
-                row_data = {}
-                applied_edge_rule_for_row = None
-
-                # Determine if this row should be an edge case
-                # This is a simple way; more sophisticated sampling could be used.
-                # For now, it checks each rule. If multiple rules could apply by chance,
-                # the current logic would try to apply conditions from all of them if fields differ,
-                # or the last one if fields overlap. This could be refined.
-                # Let's try to apply at most one rule per row for simplicity.
-
-                # Create a list of rules that could apply based on random chance
-                potential_rules_for_row = []
-                for rule in edge_case_rules:
-                    if rule.get('percentage', 0.0) > 0 and random.random() < (rule.get('percentage', 0.0) / 100.0):
-                        potential_rules_for_row.append(rule)
-
-                if potential_rules_for_row:
-                    applied_edge_rule_for_row = random.choice(potential_rules_for_row) # Pick one if multiple qualify
-
-                for field_schema in st.session_state.schema:
-                    field_name = field_schema["name"]
-                    field_specific_edge_condition = None
-
-                    if applied_edge_rule_for_row and applied_edge_rule_for_row.get('conditions'):
-                        for cond_in_rule in applied_edge_rule_for_row['conditions']:
-                            if cond_in_rule['field'] == field_name:
-                                field_specific_edge_condition = cond_in_rule # e.g. {'operator': '>', 'value': 100}
-                                break
-                    try:
-                        # Pass the full field_schema dictionary to generate_value
-                        row_data[field_name] = generate_value(field_schema, edge_condition=field_specific_edge_condition)
-                        if is_dpdp_pii(field_name):
-                            if field_name not in detected_dpdp: detected_dpdp.append(field_name)
-                    except Exception as e:
-                        st.error(f"Error generating data for field '{field_name}' (row {row_idx+1}): {str(e)}")
-                        row_data[field_name] = None # Or some default error marker
-                        schema_valid = False # Mark schema as invalid if any row fails
-
-                all_rows_data.append(row_data)
-
-            if schema_valid:
-                schema_df = pd.DataFrame(all_rows_data)
-
-                # Post-process for "Scramble Column" strategy
-                for field_s in st.session_state.schema:
-                    # Check if the field is sensitive and the strategy is scramble
-                    is_sensitive = field_s["type"] in ["email", "phone", "aadhaar", "pan", "passport", "voterid", "ifsc", "upi", "name", "address"]
-                    if is_sensitive and field_s.get("pii_handling") == "scramble_column" and field_s["name"] in schema_df.columns:
-                        # Ensure the column exists before trying to scramble
-                        # The values were already generated as "realistic_fake" by generate_value
-                        # Now we shuffle them
-                        col_to_scramble = schema_df[field_s["name"]].copy()
-                        # Only shuffle if there's more than one unique value to avoid errors
-                        if col_to_scramble.nunique() > 1:
-                             np.random.shuffle(col_to_scramble.values) # Shuffle in place
-                             schema_df[field_s["name"]] = col_to_scramble
-                        else:
-                             st.warning(f"Cannot scramble column '{field_s['name']}' as it has only one unique value.")
-
-
-                st.session_state.schema_df = schema_df
-
-                # Identify PII fields
-                pii_detected = [
-                    field["name"] for field in st.session_state.schema
-                    if field["type"] in ["email", "phone", "address", "name", "aadhaar", "pan", "passport", "voterid", "ifsc", "upi"]
-                ]
-
-                if pii_detected:
-                    st.warning(f"⚠️ Generated data contains PII fields: {', '.join(pii_detected)}. Ensure compliance with privacy regulations.")
-
-                # Display DPDP-specific warnings
-                if detected_dpdp:
-                    for field in detected_dpdp:
-                        st.markdown(f"""
-                        <div class="dpdp-warning">
-                        🔐 <strong>DPDP Compliance Note</strong>: "{field}" contains PII under India's DPDP Act
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                st.success(f"✅ Successfully generated {num_rows} rows of synthetic data!")
+            valid_relationships = True
+            for rel in st.session_state.relationships:
+                parent_fields = [f['name'] for f in st.session_state.table_schemas.get(rel['parent_table'], [])]
+                child_fields = [f['name'] for f in st.session_state.table_schemas.get(rel['child_table'], [])]
+                if rel['parent_pk'] not in parent_fields:
+                    st.error(f"Relationship Error: PK '{rel['parent_pk']}' not found in table '{rel['parent_table']}'.")
+                    valid_relationships = False
+                if rel['child_fk'] not in child_fields:
+                    st.error(f"Relationship Error: FK '{rel['child_fk']}' not found in table '{rel['child_table']}'.")
+                    valid_relationships = False
+            
+            if valid_relationships:
+                st.session_state.generated_data_frames = generate_hierarchical_data(
+                    st.session_state.table_schemas,
+                    st.session_state.relationships,
+                    num_rows, 
+                    st.session_state.edge_cases,
+                    st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")
+                )
+                if st.session_state.generated_data_frames:
+                    st.success("Hierarchical data generated successfully!")
+                    if not st.session_state.active_display_table_name or st.session_state.active_display_table_name not in st.session_state.generated_data_frames:
+                        st.session_state.active_display_table_name = list(st.session_state.generated_data_frames.keys())[0]
+                else:
+                    st.error("Failed to generate hierarchical data. Check errors above.")
+            else:
+                st.error("Please fix relationship errors before generating data.")
 
     # Display generated data if available
-    if "schema_df" in st.session_state and st.session_state.schema_df is not None:
-        st.subheader("📊 Generated Data from Schema")
+    if st.session_state.generated_data_frames:
+        st.subheader("📊 Generated Datasets")
+        
+        display_table_options = list(st.session_state.generated_data_frames.keys())
+        # Ensure active_display_table_name is valid
+        if st.session_state.active_display_table_name not in display_table_options and display_table_options:
+            st.session_state.active_display_table_name = display_table_options[0]
+        
+        st.session_state.active_display_table_name = st.selectbox(
+            "Select table to display:",
+            options=display_table_options,
+            index=display_table_options.index(st.session_state.active_display_table_name) if st.session_state.active_display_table_name in display_table_options else 0,
+            key="display_table_selector"
+        )
+
+        if st.session_state.active_display_table_name and st.session_state.active_display_table_name in st.session_state.generated_data_frames:
+            df_to_display = st.session_state.generated_data_frames[st.session_state.active_display_table_name]
+            st.dataframe(df_to_display)
+
+            csv_selected = df_to_display.to_csv(index=False)
+            excel_buffer_selected = io.BytesIO()
+            with pd.ExcelWriter(excel_buffer_selected, engine='openpyxl') as writer_excel_sel:
+                df_to_display.to_excel(writer_excel_sel, index=False, sheet_name=st.session_state.active_display_table_name)
+            excel_data_selected = excel_buffer_selected.getvalue()
+
+            dl_cols = st.columns(3)
+            with dl_cols[0]:
+                st.download_button(
+                    label=f"Download CSV ({st.session_state.active_display_table_name})",
+                    data=csv_selected,
+                    file_name=f"{st.session_state.active_display_table_name}.csv",
+                    mime="text/csv",
+                    key=f"download_csv_selected_{st.session_state.active_display_table_name}"
+                )
+            with dl_cols[1]:
+                st.download_button(
+                    label=f"Download Excel ({st.session_state.active_display_table_name})",
+                    data=excel_data_selected,
+                    file_name=f"{st.session_state.active_display_table_name}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"download_excel_selected_{st.session_state.active_display_table_name}"
+                )
+
+            if len(st.session_state.generated_data_frames) > 0: # Show only if there are tables
+                with dl_cols[2]:
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                        for table_n, table_df in st.session_state.generated_data_frames.items():
+                            zip_file.writestr(f"{table_n}.csv", table_df.to_csv(index=False))
+                    
+                    st.download_button( # This button directly triggers download
+                        label="Download All Tables (ZIP)",
+                        data=zip_buffer.getvalue(),
+                        file_name="all_tables_synthetic_data.zip",
+                        mime="application/zip",
+                        key="download_all_zip_final"
+                    )
+    # Fallback to old single schema_df display if it exists and no multi-table data generated
+    elif "schema_df" in st.session_state and st.session_state.schema_df is not None and not st.session_state.generated_data_frames:
+        st.subheader(f"📊 Generated Data (Legacy Single Table: {st.session_state.active_table_name or 'N/A'})")
         st.dataframe(st.session_state.schema_df)
-
-        # Download options
-        csv = st.session_state.schema_df.to_csv(index=False)
-
-        # Use openpyxl to create Excel file
-        excel_buffer = io.BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer_excel:
-            st.session_state.schema_df.to_excel(writer_excel, index=False, sheet_name='Sheet1')
-        excel_data = excel_buffer.getvalue()
-
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.download_button(
-                label="Download CSV",
-                data=csv,
-                file_name="schema_data.csv",
-                mime="text/csv",
-                key="download_csv_schema"
-            )
-        with col2:
-            st.download_button(
-                label="Download Excel",
-                data=excel_data,
-                file_name="schema_data.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="download_excel_schema"
-            )
+        # ... (old download buttons for single schema_df, if you want to keep them as a fallback)
 
 
 # --- Helper functions for Ethical AI Dashboard Scores ---
@@ -2005,6 +2556,7 @@ with tab1:
 
             # Download options for generated data
             csv = synthetic_df.to_csv(index=False)
+            csv_prompt = synthetic_df.to_csv(index=False) # Renamed to avoid conflict
 
             # Use openpyxl to create Excel file
             excel_buffer = io.BytesIO()
@@ -2013,11 +2565,12 @@ with tab1:
             excel_data = excel_buffer.getvalue()
 
             col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             with col1:
                 st.download_button(
                     label="Download CSV",
-                    data=csv,
-                    file_name="synthetic_data.csv",
+                    data=csv_prompt,
+                    file_name="synthetic_data_prompt.csv", # Use the intended file name
                     mime="text/csv",
                     key="download_csv_prompt"
                 )
@@ -2025,9 +2578,22 @@ with tab1:
                 st.download_button(
                     label="Download Excel",
                     data=excel_data,
-                    file_name="synthetic_data.xlsx",
+                    file_name="synthetic_data_prompt.xlsx", # Use the intended file name
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     key="download_excel_prompt"
+                )
+            with col3:
+                explain_context_prompt = {"method": "Text Prompt"}
+                explain_dfs_info_prompt = {
+                    "PromptGeneratedTable": {"rows": synthetic_df.shape[0], "cols": synthetic_df.shape[1]}
+                }
+                explain_pdf_data_prompt = generate_explainability_pdf(explain_context_prompt, explain_dfs_info_prompt)
+                st.download_button(
+                    label="Download Explainability Report",
+                    data=explain_pdf_data_prompt,
+                    file_name="explainability_report_prompt.pdf",
+                    mime="application/pdf",
+                    key="download_explain_pdf_prompt"
                 )
 
 with tab2:
@@ -2041,8 +2607,8 @@ with tab2:
     # If not, check if there's data from file upload
     elif 'uploaded_df_for_schema' in st.session_state and st.session_state.uploaded_df_for_schema is not None:
         synth_df = st.session_state.uploaded_df_for_schema
-        rows = max(1, len(synth_df)) # Use synth_df which is now populated
-    # If schema_df exists from a previous schema generation, use its row count
+        rows = max(1, len(synth_df))
+    # If schema_df (old single table) exists from a previous schema generation, use its row count
     elif 'schema_df' in st.session_state and st.session_state.schema_df is not None:
          rows = max(1, len(st.session_state.schema_df))
 
