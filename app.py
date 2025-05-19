@@ -8,14 +8,12 @@ from faker import Faker
 import random
 import openpyxl
 import re
+from scipy import stats
 from datetime import datetime
 from datetime import timedelta
 import zipfile # For downloading multiple tables as ZIP
-
-
-# Initialize Faker
-fake = Faker()
-
+import time # For simulating delays
+ 
 # Application Details
 APP_NAME = "NullByte AI"
 APP_TAGLINE = "Synthetic Data Generator"
@@ -40,6 +38,20 @@ PII_HANDLING_STRATEGIES = {
     "scramble_column": "Scramble Column (Shuffle existing fakes)" # To be implemented later for schema generation
 }
 DEFAULT_PII_STRATEGY_KEY = "default_pii_strategy"
+
+# --- NEW: Indian Language Support ---
+INDIAN_LOCALES = {
+    "en_IN": "English (India)",
+    "hi_IN": "हिन्दी (Hindi)",
+    "ta_IN": "தமிழ் (Tamil)",
+    # "te_IN": "తెలుగు (Telugu)", # Temporarily removed due to Faker AttributeError
+    # "bn_IN": "বাংলা (Bengali)", # Temporarily removed due to Faker AttributeError
+    # "mr_IN": "मराठी (Marathi)",   # Temporarily removed due to Faker AttributeError
+    # "gu_IN": "ગુજરાતી (Gujarati)", # Temporarily removed due to Faker AttributeError
+    # "kn_IN": "ಕನ್ನಡ (Kannada)",   # Temporarily removed due to Faker AttributeError
+    # "ml_IN": "മലയാളം (Malayalam)", # Temporarily removed due to Faker AttributeError
+}
+DEFAULT_LOCALE_KEY = "selected_locale"
 
 # --- Session State Initialization ---
 if 'table_schemas' not in st.session_state: # Changed from 'schema'
@@ -68,6 +80,65 @@ if 'uploaded_file_name_tab3' not in st.session_state:
     st.session_state.uploaded_file_name_tab3 = None
 if 'file_action_tab3' not in st.session_state: # To store user choice in Tab 3
     st.session_state.file_action_tab3 = None
+if 'playground_selected_template_name' not in st.session_state:
+    st.session_state.playground_selected_template_name = "None (Custom Schema)"
+if 'playground_schema_fields' not in st.session_state: # This will store the fields of the selected template
+    st.session_state.playground_schema_fields = []
+if 'playground_edge_cases' not in st.session_state:
+    st.session_state.playground_edge_cases = []
+if 'playground_num_rows' not in st.session_state:
+    st.session_state.playground_num_rows = 20 # Default for quick scenario testing
+if 'playground_generated_df' not in st.session_state:
+    st.session_state.playground_generated_df = None
+if 'playground_table_name_for_conditions' not in st.session_state: # Fixed name for conditions
+    st.session_state.playground_table_name_for_conditions = "PlaygroundScenarioTable"
+if DEFAULT_LOCALE_KEY not in st.session_state:
+    st.session_state[DEFAULT_LOCALE_KEY] = "en_IN" # Default to English (India)
+if 'deep_model_type' not in st.session_state:
+    st.session_state.deep_model_type = "GAN (Tabular)"
+if 'deep_model_data_uploaded' not in st.session_state:
+    st.session_state.deep_model_data_uploaded = False # Flag for GAN/VAE
+if 'deep_model_prompt' not in st.session_state:
+    st.session_state.deep_model_prompt = ""
+if 'dp_epsilon' not in st.session_state:
+    st.session_state.dp_epsilon = 1.0 # Default Epsilon for DP
+if 'dp_mechanism_numeric' not in st.session_state:
+    st.session_state.dp_mechanism_numeric = "Laplace Mechanism"
+if 'dp_mechanism_categorical' not in st.session_state:
+    st.session_state.dp_mechanism_categorical = "Randomized Response"
+if 'benchmark_fidelity_score' not in st.session_state:
+    st.session_state.benchmark_fidelity_score = None
+if 'benchmark_utility_score' not in st.session_state:
+    st.session_state.benchmark_utility_score = None
+if 'benchmark_privacy_score' not in st.session_state: # Lower is better for risk, or higher for protection
+    st.session_state.benchmark_privacy_score = None
+if 'advanced_lab_selection' not in st.session_state:
+    st.session_state.advanced_lab_selection = "🤖 AI-Powered Generation" # Default selection, ensure it's one of the options
+if 'federated_participants_list' not in st.session_state:
+    st.session_state.federated_participants_list = [] # List of dicts: {"name": "P1", "trained": False}
+if 'federated_new_participant_name' not in st.session_state:
+    st.session_state.federated_new_participant_name = ""
+if 'federated_aggregation_done' not in st.session_state:
+    st.session_state.federated_aggregation_done = False
+if 'federated_global_schema_template_output' not in st.session_state:
+    st.session_state.federated_global_schema_template_output = "None (Custom Schema)"
+if 'federated_num_rows_output' not in st.session_state:
+    st.session_state.federated_num_rows_output = 100
+if 'federated_generated_df_output' not in st.session_state:
+    st.session_state.federated_generated_df_output = None
+if 'marketplace_templates' not in st.session_state:
+    st.session_state.marketplace_templates = [ # Pre-populate with some examples
+        {"name": "Realistic E-commerce Transactions", "description": "Detailed e-commerce data with customer behavior.", "author": "CommunityUser1", "rating": 4.5, "downloads": 120, "discussions": 15, "trust_badge": "Verified"},
+        {"name": "Comprehensive Patient Health Records (Anonymized)", "description": "A rich dataset for healthcare analytics, PII faked.", "author": "HealthcareAI_Org", "rating": 4.8, "downloads": 250, "discussions": 30, "trust_badge": "Trusted Partner"},
+        {"name": "Simple IoT Sensor Data Stream", "description": "Basic sensor readings for IoT projects.", "author": "MakerPro", "rating": 4.0, "downloads": 80, "discussions": 5, "trust_badge": "Community Contributed"},
+    ]
+if 'marketplace_new_template_name' not in st.session_state:
+    st.session_state.marketplace_new_template_name = ""
+if 'marketplace_new_template_description' not in st.session_state:
+    st.session_state.marketplace_new_template_description = ""
+if 'marketplace_new_template_author' not in st.session_state: # In a real system, this would be the logged-in user
+    st.session_state.marketplace_new_template_author = "YourName"
+
 
 
 # --- Constants for Dependency Logic ---
@@ -92,7 +163,7 @@ st.markdown(f"*Generate AI-ready, bias-checked, privacy-compliant synthetic data
 st.markdown("""
 <style>
 .highlight-box {
-    background-color: #black;
+    background-color: black; /* Or #000000 for pure black */
     border-left: 5px solid #4e8098;
     padding: 15px;
     border-radius: 5px;
@@ -123,10 +194,43 @@ with advanced bias detection and ethical compliance checks.
 # Text Input for Dataset Description
 prompt = st.text_input("Describe the dataset you want (e.g., '10 rows of employee data with name, age, salary, email')")
 
+# --- NEW: Language Selection ---
+selected_locale_from_ui = st.selectbox(
+    "Select Language for Generated Data (Names, Addresses, etc.):",
+    options=list(INDIAN_LOCALES.keys()),
+    format_func=lambda x: INDIAN_LOCALES[x],
+    index=list(INDIAN_LOCALES.keys()).index(st.session_state[DEFAULT_LOCALE_KEY]),
+    key="language_selector_main",
+    help="This affects data generated by Faker like names and addresses. Custom category lists remain in English for now."
+)
+
+# Update session state if locale changed
+if selected_locale_from_ui != st.session_state[DEFAULT_LOCALE_KEY]:
+    st.session_state[DEFAULT_LOCALE_KEY] = selected_locale_from_ui
+    # Streamlit will rerun, and Faker will be re-initialized with the new locale.
+
 # Reproducibility Option
 use_fixed_seed = st.checkbox("Use fixed random seed for reproducible dataset")
 
-# Field type definitions
+# --- Seed Management & Faker Initialization ---
+if use_fixed_seed:
+    random.seed(42)
+    Faker.seed(42)
+else:
+    random.seed(None)
+    Faker.seed(None)
+
+try:
+    fake = Faker(st.session_state[DEFAULT_LOCALE_KEY]) # Initialize Faker with the selected locale
+except AttributeError as e:
+    st.error(f"Error initializing Faker with locale '{st.session_state[DEFAULT_LOCALE_KEY]}': {e}. "
+             f"This might indicate that the locale is not fully supported by your Faker installation. "
+             f"Falling back to 'en_IN'. Please check Faker documentation or update the library if you need this locale.")
+    st.session_state[DEFAULT_LOCALE_KEY] = "en_IN" # Fallback to a known good locale
+    fake = Faker(st.session_state[DEFAULT_LOCALE_KEY]) # Re-initialize with fallback
+
+
+# Field type definitions (FIELD_TYPES remains the same as it's for UI display of types)
 FIELD_TYPES = {
     "string": "Text String",
     "email": "Email Address",
@@ -264,7 +368,10 @@ def generate_upi():
 def _generate_string_value(constraint, field_name, pii_strategy, edge_condition=None):
     if edge_condition and edge_condition.get('operator') == '==':
         return str(edge_condition['value'])
-    return fake.text(max_nb_chars=20).replace('\n', ' ')
+    # Generate a sentence with a variable number of words, e.g., 3 to 7
+    # This makes it more like a short text string and more locale-aware than fake.text()
+    num_words = random.randint(3, 7)
+    return fake.sentence(nb_words=num_words)
 
 def _generate_int_value(constraint, field_name, pii_strategy, edge_condition=None):
     min_default, max_default = 1, 1000
@@ -1106,13 +1213,7 @@ FIELD_SYNONYM_TO_CANONICAL_MAP.update({
 
 # Generate Synthetic Data Based on Input (Simplified prompt-based, distinct from domain-specific)
 def generate_synthetic_data(description):
-    # Global access to use_fixed_seed
-    global use_fixed_seed
-
-    # Set random seed if reproducibility is requested
-    if use_fixed_seed:
-        random.seed(42)
-        Faker.seed(42)
+    # Seeding is now handled globally based on the 'use_fixed_seed' checkbox
 
     # Parse basic keywords
     description = description.lower()
@@ -1429,6 +1530,97 @@ def generate_explainability_pdf(generation_context_info, generated_dfs_info):
 
 # ... (rest of your existing code)
 
+# --- NEW: Reusable Edge Case UI Function ---
+def render_edge_case_ui(ui_key_prefix, edge_cases_list_key, table_schemas_for_fields, available_table_names_for_conditions):
+    """
+    Renders the UI for defining edge cases.
+    Args:
+        ui_key_prefix (str): A prefix for Streamlit keys to ensure uniqueness (e.g., "tab2", "playground").
+        edge_cases_list_key (str): The session state key for the list of edge cases.
+        table_schemas_for_fields (dict): A dictionary of table schemas {table_name: [field_defs]} to populate field dropdowns.
+        available_table_names_for_conditions (list): List of table names that can be selected in edge case conditions.
+    """
+    st.subheader("🧪 Edge Case Injection")
+    st.markdown("Define specific scenarios to inject into a percentage of your dataset.")
+
+    if edge_cases_list_key not in st.session_state:
+        st.session_state[edge_cases_list_key] = []
+    
+    OPERATORS = ['==', '!=', '>', '<', '>=', '<='] # Should be defined globally or passed if not already
+
+    edge_cases_list = st.session_state[edge_cases_list_key]
+
+    for i, edge_rule in enumerate(edge_cases_list):
+        st.markdown(f"**Edge Case Rule {i+1}**")
+        rule_cols = st.columns([2, 1, 1])
+        edge_rule['percentage'] = rule_cols[0].number_input(
+            "Percentage of rows to affect",
+            min_value=0.0, max_value=100.0,
+            value=edge_rule.get('percentage', 1.0),
+            step=0.1, format="%.1f",
+            key=f"{ui_key_prefix}_edge_perc_{i}"
+        )
+        if rule_cols[1].button("🗑️ Delete Rule", key=f"{ui_key_prefix}_del_edge_rule_{i}"):
+            edge_cases_list.pop(i)
+            st.rerun()
+
+        if 'conditions' not in edge_rule:
+            edge_rule['conditions'] = []
+
+        for j, condition in enumerate(edge_rule['conditions']):
+            cond_cols = st.columns([2, 3, 2, 2, 1])
+            
+            selected_table_index = 0
+            if condition.get('table') in available_table_names_for_conditions:
+                selected_table_index = available_table_names_for_conditions.index(condition['table'])
+
+            condition['table'] = cond_cols[0].selectbox(
+                "Table", available_table_names_for_conditions,
+                index=selected_table_index,
+                key=f"{ui_key_prefix}_edge_table_{i}_{j}"
+            )
+            
+            selected_table_for_cond = condition.get('table')
+            schema_field_names_for_cond_table = []
+            if selected_table_for_cond and selected_table_for_cond in table_schemas_for_fields:
+                schema_field_names_for_cond_table = [f['name'] for f in table_schemas_for_fields[selected_table_for_cond] if f['name']]
+
+            selected_field_index = 0
+            if condition.get('field') in schema_field_names_for_cond_table:
+                selected_field_index = schema_field_names_for_cond_table.index(condition['field'])
+
+            condition['field'] = cond_cols[1].selectbox(
+                "Field", schema_field_names_for_cond_table,
+                index=selected_field_index,
+                key=f"{ui_key_prefix}_edge_field_{i}_{j}"
+            )
+            condition['operator'] = cond_cols[2].selectbox(
+                "Operator", OPERATORS,
+                index=OPERATORS.index(condition['operator']) if condition.get('operator') in OPERATORS else 0,
+                key=f"{ui_key_prefix}_edge_op_{i}_{j}"
+            )
+            condition['value'] = cond_cols[3].text_input(
+                "Value", value=condition.get('value', ''),
+                key=f"{ui_key_prefix}_edge_val_{i}_{j}"
+            )
+            if cond_cols[4].button("➖", key=f"{ui_key_prefix}_del_edge_cond_{i}_{j}"):
+                edge_rule['conditions'].pop(j)
+                st.rerun()
+
+        if st.button("➕ Add Condition to Rule", key=f"{ui_key_prefix}_add_edge_cond_{i}"):
+            if available_table_names_for_conditions:
+                default_table_for_new_cond = available_table_names_for_conditions[0]
+                default_fields_for_new_cond_table = [f['name'] for f in table_schemas_for_fields.get(default_table_for_new_cond, []) if f['name']]
+                default_field_for_new_cond = default_fields_for_new_cond_table[0] if default_fields_for_new_cond_table else ""
+                edge_rule['conditions'].append({'table': default_table_for_new_cond, 'field': default_field_for_new_cond, 'operator': '==', 'value': ''})
+                st.rerun()
+            else:
+                st.warning("Please define a schema or select a template with fields before adding edge case conditions.")
+        st.markdown("---")
+
+    if st.button("➕ Add New Edge Case Rule", key=f"{ui_key_prefix}_add_new_edge_rule"):
+        edge_cases_list.append({'percentage': 1.0, 'conditions': []})
+        st.rerun()
 
 def get_field_pii_strategy(field_schema, global_default_strategy):
     """Determines the PII handling strategy for a field."""
@@ -1619,6 +1811,52 @@ def get_generation_order(table_schemas, relationships):
 
     return generation_order
 
+# --- NEW: Simplified Generation for Single Table Scenario Playground ---
+def generate_single_table_data_with_edge_cases(schema_fields, num_rows, edge_cases_list, pii_strategy_global, table_name_for_conditions):
+    """Generates data for a single table, applying edge cases."""
+    if not schema_fields:
+        st.error("Schema is empty. Cannot generate data for the playground.")
+        return None
+
+    table_rows_data = []
+    for i in range(num_rows):
+        row_data = {} # For potential intra-row dependencies
+        applied_edge_rule_for_row = None
+        
+        # Determine if an edge case rule applies to this row
+        potential_rules_for_row = [
+            rule for rule in edge_cases_list
+            if rule.get('percentage', 0.0) > 0 and random.random() < (rule.get('percentage', 0.0) / 100.0)
+        ]
+        if potential_rules_for_row:
+            applied_edge_rule_for_row = random.choice(potential_rules_for_row)
+
+        for field_schema in schema_fields:
+            field_name = field_schema["name"]
+            field_specific_edge_condition = None
+            if applied_edge_rule_for_row:
+                for cond in applied_edge_rule_for_row.get('conditions', []):
+                    # For playground, table name in condition must match the fixed playground table name
+                    if cond.get('table') == table_name_for_conditions and cond.get('field') == field_name:
+                        field_specific_edge_condition = cond
+                        break
+            # Use generate_value_with_dependencies, passing field_schema, current row_data, and edge_condition
+            row_data[field_name] = generate_value_with_dependencies(field_schema, row_data, edge_condition=field_specific_edge_condition)
+        
+        table_rows_data.append(row_data)
+
+    df = pd.DataFrame(table_rows_data)
+    
+    # Apply PII Scrambling if needed
+    for field_s in schema_fields:
+        is_sensitive = field_s["type"] in ["email", "phone", "aadhaar", "pan", "passport", "voterid", "ifsc", "upi", "name", "address"]
+        if is_sensitive and field_s.get("pii_handling") == "scramble_column" and field_s["name"] in df.columns:
+            col_to_scramble = df[field_s["name"]].copy()
+            if col_to_scramble.nunique() > 1: # Only scramble if there's more than one unique value
+                np.random.shuffle(col_to_scramble.values)
+                df[field_s["name"]] = col_to_scramble
+    return df
+
 def generate_hierarchical_data(table_schemas, relationships, num_rows_root, edge_cases_all, pii_strategy_global):
     """Generates data for multiple related tables."""
     generation_order = get_generation_order(table_schemas, relationships)
@@ -1739,107 +1977,136 @@ SCHEMA_INFERENCE_RULES = [
 
 # --- Schema Templates ---
 SCHEMA_TEMPLATES = {
-    "None (Custom Schema)": [], # Special value to indicate no template or custom editing
-    "E-commerce Customer Orders": [
-        {"name": "Order ID", "type": "string", "constraint": "", "_canonical_suggestion": "order_id"}, # Suggests using the canonical for specific ID gen
-        {"name": "Customer Name", "type": "name", "constraint": ""},
-        {"name": "Customer Email", "type": "email", "constraint": ""},
-        {"name": "Product Name", "type": "category", "constraint": "Laptop, Smartphone, Headphones, Charger, Case"},
-        {"name": "Quantity", "type": "int", "constraint": "1-5"},
-        {"name": "Price Per Unit", "type": "float", "constraint": "10.99-1299.99"},
-        {"name": "Order Date", "type": "date", "constraint": ""}, # Default date range will apply
-        {"name": "Shipping Address", "type": "address", "constraint": ""},
-        {"name": "Order Status", "type": "category", "constraint": "Pending, Shipped, Delivered, Cancelled, Returned"},
-        {"name": "Payment Method", "type": "category", "constraint": "Credit Card, Debit Card, UPI, Net Banking"},
-    ],
-    "Basic Employee Records": [
-        {"name": "Employee ID", "type": "string", "constraint": "", "_canonical_suggestion": "employee_id"},
-        {"name": "Full Name", "type": "name", "constraint": ""},
-        {"name": "Email", "type": "email", "constraint": ""},
-        {"name": "Phone Number", "type": "phone", "constraint": ""},
-        {"name": "Department", "type": "category", "constraint": "HR, Engineering, Marketing, Sales, Finance, Operations"},
-        {"name": "Position", "type": "string", "constraint": ""}, # e.g., Software Engineer, Product Manager
-        {"name": "Salary", "type": "int", "constraint": "30000-250000"},
-        {"name": "Joining Date", "type": "date", "constraint": ""},
-        {"name": "Age", "type": "int", "constraint": "22-60"},
-    ],
-    "Healthcare Patient Data (Demo)": [
-        {"name": "Patient ID", "type": "string", "constraint": "", "_canonical_suggestion": "patient_id"},
-        {"name": "Patient Name", "type": "name", "constraint": ""},
-        {"name": "Age", "type": "int", "constraint": "0-90"}, # Broader age range for patients
-        {"name": "Gender", "type": "category", "constraint": "Male, Female, Other"},
-        {"name": "Admission Date", "type": "date", "constraint": ""},
-        {"name": "Discharge Date", "type": "date", "constraint": ""},
-        {"name": "Diagnosis", "type": "category", "constraint": "Flu, Common Cold, Hypertension, Diabetes, Injury"},
-        {"name": "Attending Doctor", "type": "name", "constraint": "", "_canonical_suggestion": "doctor_name"}, # Suggests Dr. prefix
-        {"name": "Contact Phone", "type": "phone", "constraint": ""},
-    ],
-    "Financial Transactions (Simplified)": [
-        {"name": "Transaction ID", "type": "string", "constraint": "", "_canonical_suggestion": "transaction_id"},
-        {"name": "Account Number", "type": "string", "constraint": ""}, # Could be more specific if needed
-        {"name": "Transaction Date", "type": "date", "constraint": ""},
-        {"name": "Amount", "type": "float", "constraint": "1.00-50000.00"},
-        {"name": "Transaction Type", "type": "category", "constraint": "Credit, Debit, Transfer, Payment"},
-        {"name": "Description", "type": "string", "constraint": ""},
-    ]
-    ,
-    "Social Media Posts": [
-        {"name": "Post ID", "type": "string", "constraint": "", "_canonical_suggestion": "id"},
-        {"name": "Username", "type": "string", "constraint": "", "_canonical_suggestion": "username"},
-        {"name": "Post Text", "type": "string", "constraint": "", "_canonical_suggestion": "post_text"},
-        {"name": "Timestamp", "type": "date", "constraint": "datetime", "_canonical_suggestion": "timestamp"},
-        {"name": "Likes", "type": "int", "constraint": "0-10000", "_canonical_suggestion": "like_count"},
-        {"name": "Shares", "type": "int", "constraint": "0-5000", "_canonical_suggestion": "share_count"},
-        {"name": "Hashtags", "type": "string", "constraint": "", "_canonical_suggestion": "hashtags"} # Suggests comma-separated
-    ],
-    "IoT Sensor Readings": [
-        {"name": "Sensor ID", "type": "string", "constraint": "", "_canonical_suggestion": "sensor_id"},
-        {"name": "Timestamp", "type": "date", "constraint": "datetime", "_canonical_suggestion": "timestamp"},
-        {"name": "Temperature (°C)", "type": "float", "constraint": "-10.0-40.0", "_canonical_suggestion": "temperature"},
-        {"name": "Humidity (%)", "type": "float", "constraint": "20.0-80.0", "_canonical_suggestion": "humidity"},
-        {"name": "Latitude", "type": "float", "constraint": "-90.0-90.0", "_canonical_suggestion": "latitude"},
-        {"name": "Longitude", "type": "float", "constraint": "-180.0-180.0", "_canonical_suggestion": "longitude"},
-        {"name": "Sensor Type", "type": "category", "constraint": "Temperature,Humidity,Pressure,Light", "_canonical_suggestion": "sensor_type"}
-    ],
-    "Academic Publications": [
-        {"name": "Publication ID", "type": "string", "constraint": "", "_canonical_suggestion": "id"},
-        {"name": "Title", "type": "string", "constraint": "", "_canonical_suggestion": "publication_title"},
-        {"name": "Authors", "type": "string", "constraint": "", "_canonical_suggestion": "author_names"}, # Suggests semi-colon separated
-        {"name": "Journal", "type": "category", "constraint": "Nature, Science, Cell, The Lancet, PLOS One", "_canonical_suggestion": "journal_name"},
-        {"name": "Publication Year", "type": "int", "constraint": "2000-2024", "_canonical_suggestion": "publication_year"},
-        {"name": "DOI", "type": "string", "constraint": "", "_canonical_suggestion": "doi"},
-        {"name": "Keywords", "type": "string", "constraint": "", "_canonical_suggestion": "keywords"}, # Suggests comma-separated
-        {"name": "Citation Count", "type": "int", "constraint": "0-500", "_canonical_suggestion": "citation_count"}
-    ],
-    "Logistics Shipment Tracking": [
-        {"name": "Shipment ID", "type": "string", "constraint": "", "_canonical_suggestion": "shipment_id"},
-        {"name": "Tracking Number", "type": "string", "constraint": "", "_canonical_suggestion": "tracking_number"},
-        {"name": "Carrier Name", "type": "string", "constraint": "", "_canonical_suggestion": "carrier_name"},
-        {"name": "Origin", "type": "address", "constraint": "", "_canonical_suggestion": "origin_location"},
-        {"name": "Destination", "type": "address", "constraint": "", "_canonical_suggestion": "destination_location"},
-        {"name": "Status", "type": "category", "constraint": ",".join(LOGISTICS_SHIPMENT_STATUSES_LIST), "_canonical_suggestion": "shipment_status_logistics"},
-        {"name": "Estimated Delivery", "type": "date", "constraint": "", "_canonical_suggestion": "estimated_delivery_date"},
-        {"name": "Actual Delivery", "type": "date", "constraint": "", "_canonical_suggestion": "actual_delivery_date"},
-        {"name": "Freight Cost (USD)", "type": "float", "constraint": "50-5000", "_canonical_suggestion": "freight_cost"},
-        {"name": "Package Weight (kg)", "type": "float", "constraint": "0.1-1000", "_canonical_suggestion": "package_weight_kg"},
-        {"name": "Package Dimensions (cm)", "type": "string", "constraint": "", "_canonical_suggestion": "package_dimensions_cm"},
-    ],
-    "Travel Booking Records": [
-        {"name": "Booking ID", "type": "string", "constraint": "", "_canonical_suggestion": "booking_id"},
-        {"name": "Traveler Name", "type": "name", "constraint": "", "_canonical_suggestion": "traveler_name"},
-        {"name": "Destination", "type": "category", "constraint": ",".join(TRAVEL_DESTINATIONS_LIST[:10]), "_canonical_suggestion": "destination_city_travel"}, # Use a subset for template
-        {"name": "Origin", "type": "category", "constraint": ",".join(TRAVEL_DESTINATIONS_LIST[10:20]), "_canonical_suggestion": "origin_city_travel"}, # Use a subset
-        {"name": "Travel Date", "type": "date", "constraint": "", "_canonical_suggestion": "travel_date"},
-        {"name": "Return Date", "type": "date", "constraint": "", "_canonical_suggestion": "return_date"},
-        {"name": "Flight Number", "type": "string", "constraint": "", "_canonical_suggestion": "flight_number"},
-        {"name": "Airline", "type": "category", "constraint": ",".join(AIRLINE_NAMES_LIST[:5]), "_canonical_suggestion": "airline_name"},
-        {"name": "Hotel Name", "type": "string", "constraint": "", "_canonical_suggestion": "hotel_name"},
-        {"name": "Room Type", "type": "category", "constraint": ",".join(ROOM_TYPES_LIST[:4]), "_canonical_suggestion": "room_type"},
-        {"name": "Booking Status", "type": "category", "constraint": ",".join(TRAVEL_BOOKING_STATUSES_LIST), "_canonical_suggestion": "booking_status_travel"},
-        {"name": "Total Cost (USD)", "type": "float", "constraint": "200-8000", "_canonical_suggestion": "total_travel_cost"},
-        {"name": "Package Name", "type": "string", "constraint": "", "_canonical_suggestion": "travel_package_name"},
-        {"name": "Booked Activity", "type": "category", "constraint": ",".join(TRAVEL_ACTIVITY_TYPES_LIST[:5]), "_canonical_suggestion": "travel_activity"},
-    ],
+    "None (Custom Schema)": { # Special value to indicate no template or custom editing
+        "description": "Start with a blank schema in the Smart Schema Editor.",
+        "fields": []
+    },
+    "E-commerce Customer Orders": {
+        "description": "A standard schema for tracking customer orders, including customer details, product information, and order status.",
+        "fields": [
+            {"name": "Order ID", "type": "string", "constraint": "", "_canonical_suggestion": "order_id"},
+            {"name": "Customer Name", "type": "name", "constraint": ""},
+            {"name": "Customer Email", "type": "email", "constraint": ""},
+            {"name": "Product Name", "type": "category", "constraint": "Laptop, Smartphone, Headphones, Charger, Case"},
+            {"name": "Quantity", "type": "int", "constraint": "1-5"},
+            {"name": "Price Per Unit", "type": "float", "constraint": "10.99-1299.99"},
+            {"name": "Order Date", "type": "date", "constraint": ""},
+            {"name": "Shipping Address", "type": "address", "constraint": ""},
+            {"name": "Order Status", "type": "category", "constraint": "Pending, Shipped, Delivered, Cancelled, Returned"},
+            {"name": "Payment Method", "type": "category", "constraint": "Credit Card, Debit Card, UPI, Net Banking"},
+        ]
+    },
+    "Basic Employee Records": {
+        "description": "Essential fields for managing employee information, such as ID, contact details, department, and salary.",
+        "fields": [
+            {"name": "Employee ID", "type": "string", "constraint": "", "_canonical_suggestion": "employee_id"},
+            {"name": "Full Name", "type": "name", "constraint": ""},
+            {"name": "Email", "type": "email", "constraint": ""},
+            {"name": "Phone Number", "type": "phone", "constraint": ""},
+            {"name": "Department", "type": "category", "constraint": "HR, Engineering, Marketing, Sales, Finance, Operations"},
+            {"name": "Position", "type": "string", "constraint": ""},
+            {"name": "Salary", "type": "int", "constraint": "30000-250000"},
+            {"name": "Joining Date", "type": "date", "constraint": ""},
+            {"name": "Age", "type": "int", "constraint": "22-60"},
+        ]
+    },
+    "Healthcare Patient Data (Demo)": {
+        "description": "A demonstration schema for patient records in a healthcare setting, including admission details and diagnosis.",
+        "fields": [
+            {"name": "Patient ID", "type": "string", "constraint": "", "_canonical_suggestion": "patient_id"},
+            {"name": "Patient Name", "type": "name", "constraint": ""},
+            {"name": "Age", "type": "int", "constraint": "0-90"},
+            {"name": "Gender", "type": "category", "constraint": "Male, Female, Other"},
+            {"name": "Admission Date", "type": "date", "constraint": ""},
+            {"name": "Discharge Date", "type": "date", "constraint": ""},
+            {"name": "Diagnosis", "type": "category", "constraint": "Flu, Common Cold, Hypertension, Diabetes, Injury"},
+            {"name": "Attending Doctor", "type": "name", "constraint": "", "_canonical_suggestion": "doctor_name"},
+            {"name": "Contact Phone", "type": "phone", "constraint": ""},
+        ]
+    },
+    "Financial Transactions (Simplified)": {
+        "description": "A simplified schema for financial transactions, covering transaction ID, account details, amount, and type.",
+        "fields": [
+            {"name": "Transaction ID", "type": "string", "constraint": "", "_canonical_suggestion": "transaction_id"},
+            {"name": "Account Number", "type": "string", "constraint": ""},
+            {"name": "Transaction Date", "type": "date", "constraint": ""},
+            {"name": "Amount", "type": "float", "constraint": "1.00-50000.00"},
+            {"name": "Transaction Type", "type": "category", "constraint": "Credit, Debit, Transfer, Payment"},
+            {"name": "Description", "type": "string", "constraint": ""},
+        ]
+    },
+    "Social Media Posts": {
+        "description": "Schema for social media post data, including user information, post content, engagement metrics, and timestamps.",
+        "fields": [
+            {"name": "Post ID", "type": "string", "constraint": "", "_canonical_suggestion": "id"},
+            {"name": "Username", "type": "string", "constraint": "", "_canonical_suggestion": "username"},
+            {"name": "Post Text", "type": "string", "constraint": "", "_canonical_suggestion": "post_text"},
+            {"name": "Timestamp", "type": "date", "constraint": "datetime", "_canonical_suggestion": "timestamp"},
+            {"name": "Likes", "type": "int", "constraint": "0-10000", "_canonical_suggestion": "like_count"},
+            {"name": "Shares", "type": "int", "constraint": "0-5000", "_canonical_suggestion": "share_count"},
+            {"name": "Hashtags", "type": "string", "constraint": "", "_canonical_suggestion": "hashtags"}
+        ]
+    },
+    "IoT Sensor Readings": {
+        "description": "Data structure for readings from IoT sensors, including sensor ID, timestamp, and various environmental measurements.",
+        "fields": [
+            {"name": "Sensor ID", "type": "string", "constraint": "", "_canonical_suggestion": "sensor_id"},
+            {"name": "Timestamp", "type": "date", "constraint": "datetime", "_canonical_suggestion": "timestamp"},
+            {"name": "Temperature (°C)", "type": "float", "constraint": "-10.0-40.0", "_canonical_suggestion": "temperature"},
+            {"name": "Humidity (%)", "type": "float", "constraint": "20.0-80.0", "_canonical_suggestion": "humidity"},
+            {"name": "Latitude", "type": "float", "constraint": "-90.0-90.0", "_canonical_suggestion": "latitude"},
+            {"name": "Longitude", "type": "float", "constraint": "-180.0-180.0", "_canonical_suggestion": "longitude"},
+            {"name": "Sensor Type", "type": "category", "constraint": "Temperature,Humidity,Pressure,Light", "_canonical_suggestion": "sensor_type"}
+        ]
+    },
+    "Academic Publications": {
+        "description": "Schema for academic publication metadata, including title, authors, journal, publication year, and citation information.",
+        "fields": [
+            {"name": "Publication ID", "type": "string", "constraint": "", "_canonical_suggestion": "id"},
+            {"name": "Title", "type": "string", "constraint": "", "_canonical_suggestion": "publication_title"},
+            {"name": "Authors", "type": "string", "constraint": "", "_canonical_suggestion": "author_names"},
+            {"name": "Journal", "type": "category", "constraint": "Nature, Science, Cell, The Lancet, PLOS One", "_canonical_suggestion": "journal_name"},
+            {"name": "Publication Year", "type": "int", "constraint": "2000-2024", "_canonical_suggestion": "publication_year"},
+            {"name": "DOI", "type": "string", "constraint": "", "_canonical_suggestion": "doi"},
+            {"name": "Keywords", "type": "string", "constraint": "", "_canonical_suggestion": "keywords"},
+            {"name": "Citation Count", "type": "int", "constraint": "0-500", "_canonical_suggestion": "citation_count"}
+        ]
+    },
+    "Logistics Shipment Tracking": {
+        "description": "Fields for tracking logistics shipments, including shipment ID, carrier, origin, destination, status, and costs.",
+        "fields": [
+            {"name": "Shipment ID", "type": "string", "constraint": "", "_canonical_suggestion": "shipment_id"},
+            {"name": "Tracking Number", "type": "string", "constraint": "", "_canonical_suggestion": "tracking_number"},
+            {"name": "Carrier Name", "type": "string", "constraint": "", "_canonical_suggestion": "carrier_name"},
+            {"name": "Origin", "type": "address", "constraint": "", "_canonical_suggestion": "origin_location"},
+            {"name": "Destination", "type": "address", "constraint": "", "_canonical_suggestion": "destination_location"},
+            {"name": "Status", "type": "category", "constraint": ",".join(LOGISTICS_SHIPMENT_STATUSES_LIST), "_canonical_suggestion": "shipment_status_logistics"},
+            {"name": "Estimated Delivery", "type": "date", "constraint": "", "_canonical_suggestion": "estimated_delivery_date"},
+            {"name": "Actual Delivery", "type": "date", "constraint": "", "_canonical_suggestion": "actual_delivery_date"},
+            {"name": "Freight Cost (USD)", "type": "float", "constraint": "50-5000", "_canonical_suggestion": "freight_cost"},
+            {"name": "Package Weight (kg)", "type": "float", "constraint": "0.1-1000", "_canonical_suggestion": "package_weight_kg"},
+            {"name": "Package Dimensions (cm)", "type": "string", "constraint": "", "_canonical_suggestion": "package_dimensions_cm"},
+        ]
+    },
+    "Travel Booking Records": {
+        "description": "Schema for travel booking information, covering booking ID, traveler details, destination, flight, hotel, and costs.",
+        "fields": [
+            {"name": "Booking ID", "type": "string", "constraint": "", "_canonical_suggestion": "booking_id"},
+            {"name": "Traveler Name", "type": "name", "constraint": "", "_canonical_suggestion": "traveler_name"},
+            {"name": "Destination", "type": "category", "constraint": ",".join(TRAVEL_DESTINATIONS_LIST[:10]), "_canonical_suggestion": "destination_city_travel"},
+            {"name": "Origin", "type": "category", "constraint": ",".join(TRAVEL_DESTINATIONS_LIST[10:20]), "_canonical_suggestion": "origin_city_travel"},
+            {"name": "Travel Date", "type": "date", "constraint": "", "_canonical_suggestion": "travel_date"},
+            {"name": "Return Date", "type": "date", "constraint": "", "_canonical_suggestion": "return_date"},
+            {"name": "Flight Number", "type": "string", "constraint": "", "_canonical_suggestion": "flight_number"},
+            {"name": "Airline", "type": "category", "constraint": ",".join(AIRLINE_NAMES_LIST[:5]), "_canonical_suggestion": "airline_name"},
+            {"name": "Hotel Name", "type": "string", "constraint": "", "_canonical_suggestion": "hotel_name"},
+            {"name": "Room Type", "type": "category", "constraint": ",".join(ROOM_TYPES_LIST[:4]), "_canonical_suggestion": "room_type"},
+            {"name": "Booking Status", "type": "category", "constraint": ",".join(TRAVEL_BOOKING_STATUSES_LIST), "_canonical_suggestion": "booking_status_travel"},
+            {"name": "Total Cost (USD)", "type": "float", "constraint": "200-8000", "_canonical_suggestion": "total_travel_cost"},
+            {"name": "Package Name", "type": "string", "constraint": "", "_canonical_suggestion": "travel_package_name"},
+            {"name": "Booked Activity", "type": "category", "constraint": ",".join(TRAVEL_ACTIVITY_TYPES_LIST[:5]), "_canonical_suggestion": "travel_activity"},
+        ]
+    }
 }
 
 # Smart Schema Editor Section
@@ -1941,10 +2208,10 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
     if newly_selected_template != st.session_state.selected_template_name:
         st.session_state.selected_template_name = newly_selected_template
         if newly_selected_template != "None (Custom Schema)":
-            template_content = SCHEMA_TEMPLATES[newly_selected_template]
+            template_data = SCHEMA_TEMPLATES[newly_selected_template]
             st.session_state.table_schemas[st.session_state.active_table_name] = [] # Clear active table's schema
             default_global_pii_strategy = st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")
-            for field_template in template_content: # template_content is a list of field dicts
+            for field_template in template_data.get("fields", []): # Access the 'fields' key
                 new_field = field_template.copy()
                 # If template suggests a canonical type, try to get its full details
                 canonical_suggestion = new_field.pop("_canonical_suggestion", None)
@@ -2076,79 +2343,12 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
 
     # --- Edge Case Injection UI ---
     # This section needs to be updated to select a table for the field condition
-    st.markdown("---")
-    st.subheader("🧪 Edge Case Injection")
-    st.markdown("Define specific scenarios to inject into a percentage of your dataset.")
-
-    if 'edge_cases' not in st.session_state:
-        st.session_state.edge_cases = []
-    
-    all_table_names_for_edge_case = list(st.session_state.table_schemas.keys())
-    OPERATORS = ['==', '!=', '>', '<', '>=', '<=']
-
-    for i, edge_rule in enumerate(st.session_state.edge_cases):
-        st.markdown(f"**Edge Case Rule {i+1}**")
-        rule_cols = st.columns([2, 1, 1])
-        edge_rule['percentage'] = rule_cols[0].number_input(
-            "Percentage of rows",
-            min_value=0.0, max_value=100.0, # Corrected: was "Percentage of rows (per table affected by conditions)"
-            value=edge_rule.get('percentage', 1.0),
-            step=0.1, format="%.1f",
-            key=f"edge_perc_{i}"
-        )
-        if rule_cols[1].button("🗑️ Delete Rule", key=f"del_edge_rule_{i}"):
-            st.session_state.edge_cases.pop(i)
-            st.rerun()
-
-        if 'conditions' not in edge_rule:
-            edge_rule['conditions'] = []
-
-        for j, condition in enumerate(edge_rule['conditions']):
-            cond_cols = st.columns([2, 3, 2, 2, 1]) # Added column for Table selection
-            
-            condition['table'] = cond_cols[0].selectbox(
-                "Table", all_table_names_for_edge_case,
-                index=all_table_names_for_edge_case.index(condition['table']) if condition.get('table') in all_table_names_for_edge_case else 0,
-                key=f"edge_table_{i}_{j}"
-            )
-            
-            selected_table_for_cond = condition.get('table')
-            schema_field_names_for_cond_table = []
-            if selected_table_for_cond and selected_table_for_cond in st.session_state.table_schemas:
-                schema_field_names_for_cond_table = [f['name'] for f in st.session_state.table_schemas[selected_table_for_cond] if f['name']]
-
-            condition['field'] = cond_cols[1].selectbox(
-                "Field", schema_field_names_for_cond_table,
-                index=schema_field_names_for_cond_table.index(condition['field']) if condition.get('field') in schema_field_names_for_cond_table else 0,
-                key=f"edge_field_{i}_{j}"
-            )
-            condition['operator'] = cond_cols[2].selectbox(
-                "Operator", OPERATORS,
-                index=OPERATORS.index(condition['operator']) if condition['operator'] in OPERATORS else 0,
-                key=f"edge_op_{i}_{j}"
-            )
-            condition['value'] = cond_cols[3].text_input(
-                "Value", value=condition.get('value', ''),
-                key=f"edge_val_{i}_{j}"
-            )
-            if cond_cols[4].button("➖", key=f"del_edge_cond_{i}_{j}"):
-                edge_rule['conditions'].pop(j)
-                st.rerun()
-
-        if st.button("➕ Add Condition to Rule", key=f"add_edge_cond_{i}"):
-            if all_table_names_for_edge_case:
-                default_table_for_new_cond = all_table_names_for_edge_case[0]
-                default_fields_for_new_cond_table = [f['name'] for f in st.session_state.table_schemas.get(default_table_for_new_cond, []) if f['name']]
-                default_field_for_new_cond = default_fields_for_new_cond_table[0] if default_fields_for_new_cond_table else ""
-                edge_rule['conditions'].append({'table': default_table_for_new_cond, 'field': default_field_for_new_cond, 'operator': '==', 'value': ''})
-                st.rerun()
-            else:
-                st.warning("Please define schema fields before adding edge case conditions.")
-        st.markdown("---")
-
-    if st.button("➕ Add New Edge Case Rule"):
-        st.session_state.edge_cases.append({'percentage': 1.0, 'conditions': []})
-        st.rerun()
+    render_edge_case_ui(
+        ui_key_prefix="tab2_smart_schema",
+        edge_cases_list_key='edge_cases', # Uses the main 'edge_cases' for Smart Schema Editor
+        table_schemas_for_fields=st.session_state.table_schemas,
+        available_table_names_for_conditions=list(st.session_state.table_schemas.keys())
+    )
 
     # --- Relationship Definition UI ---
     st.markdown("---")
@@ -2345,6 +2545,136 @@ def calculate_bias_score(df):
         probabilities = counts / len(df[col].dropna())
         # Ensure probabilities sum to 1 (or close to it) and handle potential floating point issues
         probabilities = probabilities[probabilities > 0] # Remove categories with 0 count after dropna
+        if probabilities.sum() == 0: # Avoid division by zero if all probabilities became zero
+            column_scores.append(50) # Undetermined
+            continue
+        probabilities = probabilities / probabilities.sum() # Re-normalize
+
+        if len(probabilities) <= 1: # After cleaning, might have only one category left
+             column_scores.append(100)
+             continue
+
+        entropy = -np.sum(probabilities * np.log2(probabilities + 1e-9)) # Add epsilon to avoid log(0)
+        max_entropy = np.log2(num_categories)
+
+        normalized_entropy = entropy / max_entropy if max_entropy > 0 else 1.0
+        column_scores.append(normalized_entropy * 100)
+
+    return np.mean(column_scores) if column_scores else 50
+
+MIN_SAMPLES_FOR_DRIFT_TEST = 20 # Minimum samples required in each series for a reliable test
+DRIFT_P_VALUE_THRESHOLD = 0.05 # Standard p-value threshold
+
+def detect_numerical_drift(series1, series2, column_name):
+    """
+    Detects drift between two numerical series using the Kolmogorov-Smirnov (K-S) test.
+    Returns: (bool: drift_detected, str: message)
+    """
+    s1_clean = series1.dropna()
+    s2_clean = series2.dropna()
+
+    if len(s1_clean) < MIN_SAMPLES_FOR_DRIFT_TEST or len(s2_clean) < MIN_SAMPLES_FOR_DRIFT_TEST:
+        return False, f"Insufficient data for drift test in '{column_name}' (s1: {len(s1_clean)}, s2: {len(s2_clean)} samples)."
+
+    if s1_clean.nunique() == 1 and s2_clean.nunique() == 1 and s1_clean.iloc[0] == s2_clean.iloc[0]:
+        return False, f"No drift in '{column_name}'; both series are constant and identical."
+    
+    try:
+        ks_statistic, p_value = stats.ks_2samp(s1_clean, s2_clean)
+        if p_value < DRIFT_P_VALUE_THRESHOLD:
+            return True, f"Drift detected in '{column_name}' (K-S test, p={p_value:.3g}). Distributions likely differ."
+        else:
+            return False, f"No significant drift detected in '{column_name}' (K-S test, p={p_value:.3g})."
+    except Exception as e:
+        return False, f"Error during K-S test for '{column_name}': {e}"
+
+def detect_categorical_drift(series1, series2, column_name):
+    """
+    Detects drift between two categorical series using the Chi-squared test.
+    Returns: (bool: drift_detected, str: message)
+    """
+    s1_clean = series1.dropna()
+    s2_clean = series2.dropna()
+
+    if len(s1_clean) < MIN_SAMPLES_FOR_DRIFT_TEST or len(s2_clean) < MIN_SAMPLES_FOR_DRIFT_TEST:
+        return False, f"Insufficient data for drift test in '{column_name}' (s1: {len(s1_clean)}, s2: {len(s2_clean)} samples)."
+
+    if s1_clean.nunique() == 0 or s2_clean.nunique() == 0:
+         return False, f"No data to compare for drift in '{column_name}' after cleaning."
+
+    s1_counts = s1_clean.value_counts()
+    s2_counts = s2_clean.value_counts()
+
+    combined_index = sorted(list(set(s1_counts.index) | set(s2_counts.index)))
+
+    if not combined_index:
+        return False, f"No common categories or data to compare for '{column_name}'."
+
+    observed_df = pd.DataFrame({
+        's1': s1_counts.reindex(combined_index, fill_value=0),
+        's2': s2_counts.reindex(combined_index, fill_value=0)
+    })
+    
+    # Remove categories that are zero in both (shouldn't happen if combined_index is from actual counts)
+    observed_df = observed_df.loc[(observed_df['s1'] > 0) | (observed_df['s2'] > 0)]
+
+    if observed_df.shape[0] < 2 or observed_df.shape[1] < 2: # Need at least a 2x2 table for chi2
+        # This can happen if one series is all one value and the other is all another, or one is empty.
+        # Check if distributions are identical by comparing normalized value counts
+        s1_norm_counts = s1_clean.value_counts(normalize=True).sort_index()
+        s2_norm_counts = s2_clean.value_counts(normalize=True).sort_index()
+        if s1_norm_counts.equals(s2_norm_counts):
+            return False, f"No drift in '{column_name}'; distributions are identical (small sample/categories)."
+        else:
+            return True, f"Drift detected in '{column_name}'; distributions differ (small sample/categories)."
+
+    try:
+        chi2, p_value, dof, expected = stats.chi2_contingency(observed_df.values)
+        if p_value < DRIFT_P_VALUE_THRESHOLD:
+            # Check for low expected frequencies
+            if (expected < 5).any().any(): # If any cell in expected frequencies is < 5
+                 return True, f"Drift detected in '{column_name}' (Chi-squared, p={p_value:.3g}). Note: Some expected frequencies are low (<5), test may be less reliable."
+            return True, f"Drift detected in '{column_name}' (Chi-squared, p={p_value:.3g}). Distributions likely differ."
+        else:
+            return False, f"No significant drift detected in '{column_name}' (Chi-squared, p={p_value:.3g})."
+    except ValueError as e: # Catches errors like "The internally computed table of expected frequencies has a zero element at..."
+        # This can happen if a whole row/column sum is 0 in the contingency table.
+        # Fallback to comparing normalized value counts for equality.
+        s1_norm_counts = s1_clean.value_counts(normalize=True).sort_index()
+        s2_norm_counts = s2_clean.value_counts(normalize=True).sort_index()
+        if s1_norm_counts.equals(s2_norm_counts):
+            return False, f"No drift in '{column_name}'; distributions appear identical (Chi-squared error: {e})."
+        else:
+            return True, f"Drift detected in '{column_name}'; distributions differ (Chi-squared error: {e})."
+    except Exception as e:
+        return False, f"Error during Chi-squared test for '{column_name}': {e}"
+
+def calculate_bias_score(df): # Original calculate_bias_score function was here, moved the new one above it.
+    """Calculates a bias score based on categorical column distributions."""
+    if df is None or df.empty:
+        return 50 # Default score if no data
+
+    categorical_cols = df.select_dtypes(include='object').columns.tolist()
+    # Attempt to find more categoricals if 'object' type is not sufficient
+    if not categorical_cols:
+         categorical_cols = [col for col in df.columns if df[col].nunique() < 20 and df[col].nunique() > 1 and df[col].nunique() < len(df)]
+
+
+    if not categorical_cols:
+        return 100 # No categorical columns to assess bias, so perfectly unbiased in this context
+
+    column_scores = []
+    for col in categorical_cols:
+        counts = df[col].value_counts()
+        num_categories = len(counts)
+        if num_categories <= 1:
+            column_scores.append(100) # Perfectly uniform or single category
+            continue
+
+        # Handle potential NaN values in counts before calculating probabilities
+        probabilities = counts / len(df[col].dropna())
+        # Ensure probabilities sum to 1 (or close to it) and handle potential floating point issues
+        probabilities = probabilities[probabilities > 0] # Remove categories with 0 count after dropna
         probabilities = probabilities / probabilities.sum() # Re-normalize
 
         if len(probabilities) <= 1: # After cleaning, might have only one category left
@@ -2460,7 +2790,7 @@ def _synthesize_categorical_column_from_upload(original_series, column_name, num
 
 
 # Tabs for different workflows
-tab1, tab2, tab3 = st.tabs(["Text-based Generation", "Smart Schema Editor", "File-based Generation"])
+tab1, tab2, tab3, tab4, tab5, tab_advanced_lab = st.tabs(["Text-based Generation", "Smart Schema Editor", "File-based Generation", "Scenario Playground", "Community Gallery", "🔬 Advanced Lab"])
 
 with tab1:
     # Main Content for Text-based Generation
@@ -2695,6 +3025,7 @@ with tab3:
 
                     newly_generated_df = pd.DataFrame(new_synthetic_data)
                     
+                    st.session_state.newly_generated_df_tab3 = newly_generated_df # Store for drift detection
                     # Concatenate original df with the newly generated_df
                     combined_df = pd.concat([df, newly_generated_df], ignore_index=True)
                     st.session_state.synthetic_df_from_file_tab3 = combined_df # Store the combined df
@@ -2725,6 +3056,31 @@ with tab3:
                         st.download_button(label="Download CSV (Synthetic)", data=csv_syn_file, file_name="synthetic_data_from_file.csv", mime="text/csv", key="download_csv_synthetic_file")
                     with dl_col2:
                         st.download_button(label="Download Excel (Synthetic)", data=excel_data_syn_file, file_name="synthetic_data_from_file.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="download_excel_synthetic_file")
+                    
+                    # --- Data Drift Analysis ---
+                    if 'newly_generated_df_tab3' in st.session_state and st.session_state.newly_generated_df_tab3 is not None:
+                        original_df_for_drift = df # Uploaded original
+                        synthetic_part_df_for_drift = st.session_state.newly_generated_df_tab3
+
+                        st.markdown("---")
+                        st.subheader("🔬 Data Drift Analysis (Original vs. Synthetic Part)")
+                        drift_messages = []
+                        drift_count = 0
+                        for col in original_df_for_drift.columns:
+                            if col not in synthetic_part_df_for_drift.columns:
+                                drift_messages.append(f"Column '{col}' missing in synthetic part, cannot compare.")
+                                continue
+
+                            if pd.api.types.is_numeric_dtype(original_df_for_drift[col]):
+                                drifted, msg = detect_numerical_drift(original_df_for_drift[col], synthetic_part_df_for_drift[col], col)
+                            else: # Assume categorical for others
+                                drifted, msg = detect_categorical_drift(original_df_for_drift[col], synthetic_part_df_for_drift[col], col)
+                            
+                            if drifted:
+                                st.warning(msg)
+                                drift_count += 1
+                            drift_messages.append(msg) # Store all messages for a summary or detailed report later if needed
+                        st.info(f"Drift analysis complete. {drift_count} column(s) showed significant drift out of {len(original_df_for_drift.columns)}.")
 
             elif st.session_state.file_action_tab3 == "compliance":
                 st.markdown("---")
@@ -2784,6 +3140,496 @@ with tab3:
             st.error(f"Error processing uploaded file: {e}")
             st.session_state.uploaded_df_for_schema = None # Clear on error
 
+with tab4:
+    st.header("🎲 Scenario & Edge Case Playground")
+    st.markdown("Design and test specific data scenarios or edge cases quickly. Select a base schema template, define your edge cases, and generate a small dataset to see the results.")
+
+    # 1. Select Schema Template
+    st.subheader("1. Base Schema for Scenario")
+    playground_template_options = list(SCHEMA_TEMPLATES.keys())
+    
+    current_pg_template_idx = 0
+    if st.session_state.playground_selected_template_name in playground_template_options:
+        current_pg_template_idx = playground_template_options.index(st.session_state.playground_selected_template_name)
+    
+    selected_pg_template = st.selectbox(
+        "Select a base schema template:",
+        options=playground_template_options,
+        index=current_pg_template_idx,
+        key="playground_template_selector"
+    )
+
+    if selected_pg_template != st.session_state.playground_selected_template_name:
+        st.session_state.playground_selected_template_name = selected_pg_template
+        if selected_pg_template != "None (Custom Schema)":
+            template_data_pg = SCHEMA_TEMPLATES[selected_pg_template]
+            st.session_state.playground_schema_fields = [] # Clear previous
+            default_global_pii_strategy = st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")
+            for field_template in template_data_pg.get("fields", []): # Access the 'fields' key
+                new_field = field_template.copy()
+                canonical_suggestion = new_field.pop("_canonical_suggestion", None)
+                if canonical_suggestion and canonical_suggestion in CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP:
+                    canonical_details = CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP[canonical_suggestion]
+                    new_field["type"] = canonical_details.get("type", new_field["type"])
+                    new_field["constraint"] = canonical_details.get("constraint", new_field["constraint"])
+                is_sensitive = new_field["type"] in ["email", "phone", "aadhaar", "pan", "passport", "voterid", "ifsc", "upi", "name", "address"]
+                new_field["pii_handling"] = new_field.get("pii_handling", default_global_pii_strategy if is_sensitive else "realistic_fake")
+                st.session_state.playground_schema_fields.append(new_field)
+        else:
+            st.session_state.playground_schema_fields = [] # Clear if "None" is selected
+        st.session_state.playground_generated_df = None # Clear previous results
+        st.session_state.playground_edge_cases = [] # Clear edge cases when template changes
+        st.rerun()
+
+    if st.session_state.playground_schema_fields:
+        st.markdown("**Selected Schema Fields:**")
+        for field in st.session_state.playground_schema_fields:
+            st.caption(f"- {field['name']} ({FIELD_TYPES.get(field['type'], field['type'])})")
+    elif st.session_state.playground_selected_template_name != "None (Custom Schema)":
+        st.info("Selected template has no fields or an issue occurred. Please select another.")
+    else:
+        st.info("Please select a schema template to define fields for your scenario.")
+
+    # 2. Define Edge Cases for this Scenario
+    playground_schema_for_edge_cases = {st.session_state.playground_table_name_for_conditions: st.session_state.playground_schema_fields}
+    render_edge_case_ui(
+        ui_key_prefix="playground",
+        edge_cases_list_key='playground_edge_cases',
+        table_schemas_for_fields=playground_schema_for_edge_cases,
+        available_table_names_for_conditions=[st.session_state.playground_table_name_for_conditions] if st.session_state.playground_schema_fields else []
+    )
+
+    # 3. Generate Scenario Data
+    st.subheader("3. Generate Scenario Data")
+    st.session_state.playground_num_rows = st.number_input("Number of rows for scenario:", min_value=1, max_value=1000, value=st.session_state.playground_num_rows, step=5, key="pg_num_rows")
+
+    if st.button("🔄 Generate Scenario Data", key="generate_playground_data", disabled=not st.session_state.playground_schema_fields):
+        if st.session_state.playground_schema_fields:
+            st.session_state.playground_generated_df = generate_single_table_data_with_edge_cases(
+                schema_fields=st.session_state.playground_schema_fields,
+                num_rows=st.session_state.playground_num_rows,
+                edge_cases_list=st.session_state.playground_edge_cases,
+                pii_strategy_global=st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake"),
+                table_name_for_conditions=st.session_state.playground_table_name_for_conditions
+            )
+            if st.session_state.playground_generated_df is not None:
+                st.success("Scenario data generated!")
+            else:
+                st.error("Failed to generate scenario data. Check if schema is valid.")
+        else:
+            st.warning("Please select a schema template with fields before generating data.")
+
+    # 4. Display Generated Scenario Data
+    if st.session_state.playground_generated_df is not None:
+        st.subheader("📊 Generated Scenario Data")
+        st.dataframe(st.session_state.playground_generated_df)
+        
+        csv_playground = st.session_state.playground_generated_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Download Scenario CSV",
+            data=csv_playground,
+            file_name="scenario_playground_data.csv",
+            mime="text/csv",
+            key="download_csv_playground"
+        )
+
+with tab5:
+    st.header("🏛️ Community Schema Gallery")
+    st.markdown("Explore and load predefined schema templates to kickstart your data generation in the **Smart Schema Editor**.")
+    st.markdown("---")
+
+    for template_name, template_data in SCHEMA_TEMPLATES.items():
+        if template_name == "None (Custom Schema)": # Skip the placeholder
+            continue
+
+        with st.expander(f"**{template_name}** - {template_data.get('description', 'No description available.')}"):
+            st.markdown("**Fields in this template:**")
+            if template_data.get("fields"):
+                for field in template_data["fields"]:
+                    st.caption(f"- {field['name']} ({FIELD_TYPES.get(field['type'], field['type'])})")
+            else:
+                st.caption("No fields defined for this template.")
+            
+            if st.button(f"Load '{template_name}' into Smart Schema Editor", key=f"load_gallery_{template_name}"):
+                # Determine target table in Smart Schema Editor
+                target_table_name_for_gallery_load = st.session_state.active_table_name
+                if not target_table_name_for_gallery_load or target_table_name_for_gallery_load not in st.session_state.table_schemas:
+                    target_table_name_for_gallery_load = "Table1" # Default if no active or valid table
+                    if target_table_name_for_gallery_load not in st.session_state.table_schemas:
+                        st.session_state.table_schemas[target_table_name_for_gallery_load] = [] # Create if not exists
+                
+                st.session_state.table_schemas[target_table_name_for_gallery_load] = [] # Clear target table's schema
+                default_pii_strategy = st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")
+                
+                for field_template in template_data.get("fields", []):
+                    new_field = field_template.copy()
+                    canonical_suggestion = new_field.pop("_canonical_suggestion", None)
+                    if canonical_suggestion and canonical_suggestion in CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP:
+                        details = CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP[canonical_suggestion]
+                        new_field["type"] = details.get("type", new_field.get("type", "string"))
+                        new_field["constraint"] = details.get("constraint", new_field.get("constraint", ""))
+                    is_sensitive = new_field["type"] in ["email", "phone", "aadhaar", "pan", "passport", "voterid", "ifsc", "upi", "name", "address"]
+                    new_field["pii_handling"] = new_field.get("pii_handling", default_pii_strategy if is_sensitive else "realistic_fake")
+                    st.session_state.table_schemas[target_table_name_for_gallery_load].append(new_field)
+                
+                st.session_state.active_table_name = target_table_name_for_gallery_load # Ensure this is the active table
+                st.session_state.selected_template_name = template_name # Update Tab 2's dropdown state
+                st.session_state.initial_schema_populated = True
+                st.session_state.generated_data_frames = {} # Clear any old generated data
+                st.success(f"Template '{template_name}' loaded into table '{target_table_name_for_gallery_load}' in the Smart Schema Editor. Please navigate there to continue.")
+                # st.rerun() # Not strictly necessary here, success message guides user
+
+with tab_advanced_lab:
+    st.header("🔬 Advanced Lab")
+    st.markdown("Explore cutting-edge techniques for synthetic data generation, privacy enhancement, and quality assessment. These features are currently conceptual placeholders for future development.")
+
+    advanced_lab_options = ["🤖 AI-Powered Generation", "🛡️ Differential Privacy", "🏆 Quality Benchmarking", "🤝 Federated Generation", "🌐 Community Marketplace"]
+    current_adv_lab_selection_idx = advanced_lab_options.index(st.session_state.advanced_lab_selection)
+
+    st.session_state.advanced_lab_selection = st.radio(
+        "Select an Advanced Tool:",
+        options=advanced_lab_options,
+        index=current_adv_lab_selection_idx,
+        key="adv_lab_radio",
+        horizontal=True
+    )
+    st.markdown("---")
+
+    if st.session_state.advanced_lab_selection == "🤖 AI-Powered Generation":
+        # Content from old tab_deep_gen
+        st.subheader("🚀 AI-Powered Generation (Deep Generative Models)")
+        st.markdown("""
+        This section is for integrating advanced deep learning models like Generative Adversarial Networks (GANs),
+        Variational Autoencoders (VAEs), and Transformer-based models (e.g., GPT) for synthetic data generation.
+        These models can produce highly realistic and complex data, capturing intricate patterns from the original dataset
+        or generating creative text based on prompts.
+
+        **Current Status:** This is a placeholder for future development. Full integration of these models
+        requires significant backend infrastructure and model training capabilities.
+        """)
+        st.info("✨ **Coming Soon:** Full integration of deep generative models for cutting-edge synthetic data.")
+
+        st.session_state.deep_model_type = st.selectbox(
+            "Select Deep Generative Model Type:",
+            options=["GAN (Tabular)", "VAE (Tabular)", "Transformer/GPT (Text/Structured from Prompt)"],
+            key="deep_model_selector",
+            help="Choose the type of deep learning model to use."
+        )
+
+        if st.session_state.deep_model_type in ["GAN (Tabular)", "VAE (Tabular)"]:
+            st.markdown(f"""
+            {st.session_state.deep_model_type} models learn the underlying patterns from an existing tabular dataset to generate new, synthetic samples.
+            You would typically upload your real dataset here for the model to train on.
+            """)
+            uploaded_deep_model_file = st.file_uploader(
+                f"Upload Training Data (CSV/XLSX) for {st.session_state.deep_model_type}",
+                type=["csv", "xlsx"],
+                key="deep_model_file_uploader"
+            )
+            if uploaded_deep_model_file:
+                st.success(f"File '{uploaded_deep_model_file.name}' uploaded. In a full implementation, this would be used for training.")
+                st.session_state.deep_model_data_uploaded = True
+            else:
+                st.session_state.deep_model_data_uploaded = False
+
+            st.number_input("Number of Synthetic Rows to Generate:", min_value=10, value=100, key="deep_model_num_rows")
+            st.text_input("Model Parameters (e.g., epochs, batch_size - conceptual):", value="epochs=100, batch_size=32", key="deep_model_params_tabular", disabled=True)
+
+            if st.button(f"Train & Generate with {st.session_state.deep_model_type}", key="deep_model_generate_tabular_btn", disabled=not st.session_state.deep_model_data_uploaded):
+                st.info(f"Placeholder: Simulating training of {st.session_state.deep_model_type} and generation of data. This would involve significant computation in a real scenario.")
+                st.success("Conceptual generation complete! (No actual data generated in this placeholder).")
+
+        elif st.session_state.deep_model_type == "Transformer/GPT (Text/Structured from Prompt)":
+            st.markdown("""
+            Transformer-based models like GPT can generate coherent text or even structured data (like JSON or code snippets)
+            based on a detailed natural language prompt.
+            """)
+            st.session_state.deep_model_prompt = st.text_area("Enter your detailed prompt for generation:", height=150, value=st.session_state.deep_model_prompt, key="deep_model_prompt_input")
+            st.text_input("Model Parameters (e.g., temperature, max_tokens - conceptual):", value="temperature=0.7, max_tokens=500", key="deep_model_params_gpt", disabled=True)
+
+            if st.button("Generate with Transformer/GPT Model", key="deep_model_generate_gpt_btn", disabled=not st.session_state.deep_model_prompt):
+                st.info("Placeholder: Simulating generation with a Transformer/GPT model. This would involve API calls or local model inference in a real scenario.")
+                st.success(f"Conceptual generation based on prompt: '{st.session_state.deep_model_prompt[:100]}...' complete! (No actual data generated in this placeholder).")
+
+    elif st.session_state.advanced_lab_selection == "🛡️ Differential Privacy":
+        # Content from old tab_adv_privacy
+        st.subheader("🛡️ Advanced Privacy: Differential Privacy (DP)")
+        st.markdown("""
+        Differential Privacy (DP) offers a strong, mathematical guarantee of privacy. It ensures that the output of a data analysis or synthetic data generation process does not significantly change whether any single individual's data is included or excluded from the original dataset. This is the gold standard for privacy and a major requirement for many enterprise and government applications.
+
+        **Key Concepts:**
+        - **Epsilon (ε):** The privacy loss parameter. A smaller epsilon means stronger privacy (less information leakage about individuals).
+        - **Delta (δ):** The probability that the privacy guarantee might be broken. Often set to a very small number. (For simplicity, we are focusing on ε-DP here).
+
+        **Current Status:** This section is a placeholder for future development. Implementing true Differential Privacy is complex and requires specialized algorithms and careful calibration.
+        """)
+        st.info("✨ **Coming Soon:** Full integration of Differential Privacy mechanisms for provably private synthetic data.")
+
+        st.markdown("Below are conceptual controls for how DP might be applied. Actual implementation would involve adding calibrated noise during the data generation or aggregation process.")
+        st.session_state.dp_epsilon = st.number_input(
+            "Privacy Budget - Epsilon (ε):",
+            min_value=0.01, max_value=10.0, value=st.session_state.dp_epsilon, step=0.1,
+            help="Lower epsilon = stronger privacy. Common values range from 0.1 to 1.0.",
+            key="dp_epsilon_input"
+        )
+        st.session_state.dp_mechanism_numeric = st.selectbox(
+            "Conceptual DP Mechanism for Numerical Data:",
+            options=["Laplace Mechanism", "Gaussian Mechanism"],
+            index=["Laplace Mechanism", "Gaussian Mechanism"].index(st.session_state.dp_mechanism_numeric),
+            key="dp_mech_numeric_selector",
+            help="Technique to add noise to numerical values to achieve DP."
+        )
+        st.session_state.dp_mechanism_categorical = st.selectbox(
+            "Conceptual DP Mechanism for Categorical Data:",
+            options=["Randomized Response", "Exponential Mechanism (for counts/histograms)"],
+            index=["Randomized Response", "Exponential Mechanism (for counts/histograms)"].index(st.session_state.dp_mechanism_categorical),
+            key="dp_mech_categorical_selector",
+            help="Technique to perturb categorical values or their distributions for DP."
+        )
+        st.markdown("**Note on Data Utility:** Applying Differential Privacy involves adding noise, which can reduce the utility (accuracy or realism) of the synthetic data. There's always a trade-off between privacy (ε) and utility.")
+        if st.button("Generate Data with Conceptual DP", key="dp_generate_btn"):
+            st.info(f"Placeholder: Simulating data generation with Differential Privacy (ε={st.session_state.dp_epsilon}). This would involve applying noise based on the selected mechanisms and epsilon to the generation process.")
+            st.success("Conceptual DP-aware generation complete! (No actual data generated in this placeholder).")
+        st.markdown("A real DP implementation would typically provide a report detailing: Epsilon (ε) and Delta (δ) values, mechanisms used, assumptions, and interpretation guidance.")
+
+    elif st.session_state.advanced_lab_selection == "🏆 Quality Benchmarking":
+        # Content from old tab_quality
+        st.subheader("🏆 Synthetic Data Quality Benchmarking")
+        st.markdown("""
+        This section is dedicated to evaluating the quality of the generated synthetic data against original (real) data.
+        Benchmarking helps build trust and allows users to understand the trade-offs of different generation methods.
+        It typically involves assessing:
+        - **Fidelity:** How closely the statistical properties of synthetic data match the real data.
+        - **Utility:** How well the synthetic data performs for a specific task (e.g., training a machine learning model) compared to real data.
+        - **Privacy:** How well the synthetic data protects individual privacy from the original dataset.
+
+        **Current Status:** This is a placeholder for future development. Full integration requires a reference (real) dataset and implementation of various metrics, potentially using libraries like `sdmetrics`.
+        """)
+        st.info("✨ **Coming Soon:** Automated benchmarking with detailed reports on fidelity, utility, and privacy.")
+
+        original_data_available = 'uploaded_file_name_tab3' in st.session_state and st.session_state.uploaded_file_name_tab3 is not None and \
+                                  'uploaded_df_for_schema' in st.session_state and st.session_state.uploaded_df_for_schema is not None
+        synthetic_data_available_tab3 = 'newly_generated_df_tab3' in st.session_state and st.session_state.newly_generated_df_tab3 is not None
+
+        if original_data_available and synthetic_data_available_tab3:
+            st.success(f"Original data ('{st.session_state.uploaded_file_name_tab3}') and its synthetic counterpart are available from 'File-based Generation'.")
+            st.session_state.benchmark_data_source = "File-based Generation Output"
+        else:
+            st.warning("To perform benchmarking, you typically need an original (real) dataset and a synthetic dataset generated from it. "
+                       "The most direct way to get this is by using the 'File-based Generation' tab to upload your data and then generate a synthetic version.")
+            st.session_state.benchmark_data_source = None
+
+        if st.button("Run Conceptual Benchmark Analysis", key="run_benchmark_btn", disabled=(not original_data_available or not synthetic_data_available_tab3)):
+            st.info("Placeholder: Simulating benchmark analysis. This would involve complex calculations and comparisons.")
+            st.session_state.benchmark_fidelity_score = random.uniform(60, 95)
+            st.session_state.benchmark_utility_score = random.uniform(50, 90)
+            st.session_state.benchmark_privacy_score = random.uniform(70, 98)
+            st.success("Conceptual benchmark analysis complete!")
+
+        if st.session_state.benchmark_fidelity_score is not None:
+            st.markdown(f"**Data Source for Benchmark:** {st.session_state.get('benchmark_data_source', 'N/A')}")
+            q_col1, q_col2, q_col3 = st.columns(3)
+            q_col1.metric("Fidelity Score", f"{st.session_state.benchmark_fidelity_score:.1f}/100", help="Statistical similarity. Higher is better.")
+            q_col2.metric("ML Utility Score", f"{st.session_state.benchmark_utility_score:.1f}/100", help="ML model performance. Higher is better.")
+            q_col3.metric("Privacy Protection Score", f"{st.session_state.benchmark_privacy_score:.1f}/100", help="Resistance to re-identification. Higher is better.")
+            st.markdown("Conceptual Metrics: Column Shape Similarity, Correlation Similarity, ML Task Performance, Membership Inference Resistance.")
+            st.caption("Actual implementation would use libraries like `sdmetrics`.")
+
+    elif st.session_state.advanced_lab_selection == "🤝 Federated Generation":
+        st.subheader("🤝 Federated Synthetic Data Generation")
+        st.markdown("""
+        Federated Synthetic Data Generation applies principles from federated learning to enable multiple organizations
+        to collaboratively generate a rich synthetic dataset **without sharing their raw, sensitive data directly**. Each organization
+        would train a local model on its data, and these models (or their parameters/updates) are securely aggregated
+        to create a global synthetic data generator.
+
+        **Why it's important (especially for India):**
+        - **Healthcare:** Hospitals can collaborate to create diverse synthetic patient datasets for research without exposing actual patient records.
+        - **Fintech:** Banks and financial institutions can generate synthetic transaction data to improve fraud detection models or understand market trends collectively.
+        - **Government:** Different government departments can contribute to synthetic datasets for policy making, urban planning, or public service improvement while respecting data silos and privacy mandates.
+
+        **Current Status:** This is a highly advanced feature and a placeholder for future exploration.
+        Implementing federated generation requires robust infrastructure for:
+        - Secure multi-party computation.
+        - Distributed model training and aggregation.
+        - Strong privacy-preserving techniques (like differential privacy) applied at each step.
+        """)
+        st.info("✨ **Vision for the Future:** Enabling collaborative, privacy-preserving synthetic data ecosystems.")
+        st.markdown("---")
+
+        st.subheader("1. Define Participants (Conceptual)")
+        participant_cols = st.columns([3,1])
+        st.session_state.federated_new_participant_name = participant_cols[0].text_input(
+            "New Participant Name (e.g., Hospital A, Bank X)", 
+            value=st.session_state.federated_new_participant_name,
+            key="fed_new_participant_name_input"
+        )
+        if participant_cols[1].button("Add Participant", key="fed_add_participant_btn", use_container_width=True):
+            if st.session_state.federated_new_participant_name and not any(p['name'] == st.session_state.federated_new_participant_name for p in st.session_state.federated_participants_list):
+                st.session_state.federated_participants_list.append({"name": st.session_state.federated_new_participant_name, "trained": False})
+                st.session_state.federated_new_participant_name = "" # Clear input
+                st.session_state.federated_aggregation_done = False # Reset aggregation if participants change
+                st.session_state.federated_generated_df_output = None
+                st.rerun()
+            elif not st.session_state.federated_new_participant_name:
+                st.warning("Participant name cannot be empty.")
+            else:
+                st.warning(f"Participant '{st.session_state.federated_new_participant_name}' already exists.")
+
+        if st.session_state.federated_participants_list:
+            st.markdown("**Current Participants:**")
+            for i, p_info in enumerate(st.session_state.federated_participants_list):
+                p_cols = st.columns([3,2,1])
+                p_cols[0].write(f"- **{p_info['name']}** (Status: {'Model Trained' if p_info['trained'] else 'Awaiting Training'})")
+                if not p_info['trained']:
+                    if p_cols[1].button(f"Simulate Local Training for {p_info['name']}", key=f"fed_train_{i}"):
+                        with st.spinner(f"Simulating local model training for {p_info['name']}..."):
+                            # In a real scenario, this would be a long, complex process.
+                            random_sleep_time = random.uniform(1, 3) # Simulate some work
+                            time.sleep(random_sleep_time)
+                        st.session_state.federated_participants_list[i]['trained'] = True
+                        st.session_state.federated_aggregation_done = False # Reset aggregation
+                        st.session_state.federated_generated_df_output = None
+                        st.rerun()
+                else:
+                    p_cols[1].success("Local Model Trained 👍")
+                
+                if p_cols[2].button("Remove", key=f"fed_remove_p_{i}"):
+                    st.session_state.federated_participants_list.pop(i)
+                    st.session_state.federated_aggregation_done = False
+                    st.session_state.federated_generated_df_output = None
+                    st.rerun()
+            st.markdown("---")
+
+        st.subheader("2. Simulate Model Aggregation")
+        all_trained = all(p['trained'] for p in st.session_state.federated_participants_list)
+        if not st.session_state.federated_participants_list:
+            st.info("Add participants to enable aggregation.")
+        elif not all_trained:
+            st.info("All participants must complete 'Simulate Local Training' before aggregation.")
+        
+        if st.button("Simulate Secure Model Aggregation", key="fed_aggregate_btn", disabled=(not st.session_state.federated_participants_list or not all_trained)):
+            with st.spinner("Simulating secure aggregation of local models into a global model..."):
+                # Real aggregation is complex (FedAvg, secure MPC, etc.)
+                time.sleep(random.uniform(1,3)) # Simulate work
+            st.session_state.federated_aggregation_done = True
+            st.session_state.federated_generated_df_output = None
+            st.success("Global model aggregation simulated successfully! Ready to generate data.")
+            st.rerun()
+
+        if st.session_state.federated_aggregation_done:
+            st.success("✅ Global Model Ready (Simulated)")
+            st.markdown("---")
+            st.subheader("3. Generate Synthetic Data from Simulated Global Model")
+
+            fed_schema_options = list(SCHEMA_TEMPLATES.keys())
+            # Ensure the stored template name is valid, otherwise default
+            if st.session_state.federated_global_schema_template_output not in fed_schema_options:
+                st.session_state.federated_global_schema_template_output = "None (Custom Schema)"
+            
+            current_fed_schema_idx = fed_schema_options.index(st.session_state.federated_global_schema_template_output)
+
+            st.session_state.federated_global_schema_template_output = st.selectbox(
+                "Select Schema Template for Federated Output:",
+                options=fed_schema_options,
+                index=current_fed_schema_idx,
+                key="fed_output_schema_selector",
+                help="This schema will define the structure of the synthetic data generated by the simulated global model."
+            )
+            st.session_state.federated_num_rows_output = st.number_input("Number of rows for federated output:", min_value=10, value=st.session_state.federated_num_rows_output, key="fed_num_rows_output")
+
+            if st.button("Generate Federated Data (Simulated)", key="fed_generate_output_btn", disabled=(st.session_state.federated_global_schema_template_output == "None (Custom Schema)")):
+                if st.session_state.federated_global_schema_template_output != "None (Custom Schema)":
+                    template_fields = SCHEMA_TEMPLATES[st.session_state.federated_global_schema_template_output].get("fields", [])
+                    if template_fields:
+                        # Use the single_table_data_with_edge_cases for simplicity, without edge cases for this simulation
+                        st.session_state.federated_generated_df_output = generate_single_table_data_with_edge_cases(
+                            schema_fields=template_fields,
+                            num_rows=st.session_state.federated_num_rows_output,
+                            edge_cases_list=[], # No edge cases for this simulation
+                            pii_strategy_global=st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake"),
+                            table_name_for_conditions="FederatedOutputTable" # Dummy name
+                        )
+                        st.success("Federated synthetic data generated (simulated)!")
+                    else:
+                        st.error(f"Selected template '{st.session_state.federated_global_schema_template_output}' has no fields defined.")
+                else:
+                    st.warning("Please select a valid schema template for the output.")
+
+            if st.session_state.federated_generated_df_output is not None:
+                st.dataframe(st.session_state.federated_generated_df_output)
+                csv_fed_output = st.session_state.federated_generated_df_output.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="Download Federated Output CSV",
+                    data=csv_fed_output,
+                    file_name="federated_synthetic_data.csv",
+                    mime="text/csv",
+                    key="download_csv_federated_output"
+                )
+    elif st.session_state.advanced_lab_selection == "🌐 Community Marketplace":
+        st.subheader("🌐 Community Dataset Marketplace (Conceptual)")
+        st.markdown("""
+        Discover, share, and collaborate on synthetic dataset templates. This marketplace aims to foster a
+        vibrant ecosystem for synthetic data, accelerating development and research.
+        
+        **Features (Conceptual):**
+        - **Publish Templates:** Share your own schema templates (from the Smart Schema Editor).
+        - **Browse & Discover:** Find templates for various domains and use cases.
+        - **Rate & Discuss:** Provide feedback and engage with other users.
+        - **Versioning:** Track changes and improvements to templates.
+        - **Trust Badges:** Identify verified or high-quality templates.
+
+        **Current Status:** This is a conceptual placeholder. A full marketplace requires a backend database, user authentication, and moderation.
+        """)
+        st.info("✨ **Vision for the Future:** A collaborative hub for synthetic data innovation.")
+        st.markdown("---")
+
+        st.subheader("Browse Community Templates (Simulated)")
+        if not st.session_state.marketplace_templates:
+            st.info("No community templates available yet. Be the first to publish!")
+        
+        for i, template in enumerate(st.session_state.marketplace_templates):
+            with st.expander(f"**{template['name']}** by {template['author']} (Rating: {template['rating']} ⭐)"):
+                st.markdown(f"**Description:** {template['description']}")
+                st.markdown(f"**Downloads:** {template['downloads']} | **Discussions:** {template['discussions']} | **Badge:** `{template['trust_badge']}`")
+                cols_market = st.columns(3)
+                if cols_market[0].button("Load to Smart Schema Editor", key=f"market_load_{i}"):
+                    st.info(f"Conceptual: Loading '{template['name']}' into Smart Schema Editor. (Not implemented in this placeholder)")
+                if cols_market[1].button("View Details/Discuss", key=f"market_discuss_{i}"):
+                    st.info(f"Conceptual: Opening discussion page for '{template['name']}'. (Not implemented)")
+                if cols_market[2].button("Rate Template", key=f"market_rate_{i}"):
+                    st.info(f"Conceptual: Opening rating dialog for '{template['name']}'. (Not implemented)")
+        st.markdown("---")
+
+        st.subheader("Publish Your Dataset Template (Simulated)")
+        st.markdown("Share a schema you've created in the 'Smart Schema Editor' with the community.")
+        
+        st.session_state.marketplace_new_template_name = st.text_input(
+            "Template Name:", 
+            value=st.session_state.marketplace_new_template_name, 
+            key="market_new_name"
+        )
+        st.session_state.marketplace_new_template_description = st.text_area(
+            "Description:", 
+            value=st.session_state.marketplace_new_template_description, 
+            key="market_new_desc"
+        )
+        st.session_state.marketplace_new_template_author = st.text_input(
+            "Your Name/Organization (Author):", 
+            value=st.session_state.marketplace_new_template_author, 
+            key="market_new_author"
+        )
+        # In a real system, you'd select a schema from st.session_state.table_schemas
+        st.caption("Conceptual: In a full implementation, you would select one of your saved schemas from the Smart Schema Editor to publish.")
+
+        if st.button("Publish Template to Marketplace (Simulated)", key="market_publish_btn", disabled=not (st.session_state.marketplace_new_template_name and st.session_state.marketplace_new_template_description)):
+            new_community_template = {"name": st.session_state.marketplace_new_template_name, "description": st.session_state.marketplace_new_template_description, "author": st.session_state.marketplace_new_template_author, "rating": 0.0, "downloads": 0, "discussions": 0, "trust_badge": "New"}
+            st.session_state.marketplace_templates.append(new_community_template)
+            st.success(f"Template '{st.session_state.marketplace_new_template_name}' conceptually published!")
+            st.session_state.marketplace_new_template_name = ""
+            st.session_state.marketplace_new_template_description = ""
+            st.rerun()
+
 # Sidebar with Instructions
 st.sidebar.title(f"{APP_NAME} Guide")
 st.sidebar.markdown(f"""
@@ -2812,12 +3658,33 @@ st.sidebar.markdown(f"""
    - Generate synthetic version of your data.
    - Analyze bias and distribution of the *original* data.
 
-5. **PII Protection**:
-   - Automatic detection of Personal Identifiable Information.
-   - Warnings for potential privacy risks.
-   - Synthetic data generation with fake personal data.
+4. **Scenario Playground**:
+   - Quickly test specific edge cases.
+   - Select a base schema template.
+   - Define edge case rules and generate a small dataset to observe their effect.
 
-6. **Features**:
+5. **PII Protection**:
+   - Automatic detection of PII.
+   - Warnings for potential privacy risks.
+
+6. **Community Gallery**:
+   - Explore predefined schema templates for various domains.
+   - Quickly load a template into the Smart Schema Editor to get started.
+
+7. **🔬 Advanced Lab (Future Development)**:
+   - **🤖 AI-Powered Generation**: Use GANs, VAEs, or GPT-like models.
+   - **🛡️ Differential Privacy**: Apply DP for strong privacy guarantees.
+   - **🏆 Quality Benchmarking**: Assess synthetic data fidelity, utility, and privacy.
+   - **🤝 Federated Generation**: Collaboratively generate data across organizations.
+   - **🌐 Community Marketplace**: Share and discover dataset templates.
+   - *These advanced features are currently conceptual placeholders.*
+
+8. **Language Support**:
+   - Generate data like names and addresses in selected Indian languages (Hindi, Tamil, Telugu, etc.).
+   - Note: Custom category lists (e.g., product names, diagnoses) are currently English-based.
+
+
+**Other Features**:
    - Generate synthetic data.
    - Download as CSV or Excel.
    - Bias checking.
