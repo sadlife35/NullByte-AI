@@ -138,6 +138,14 @@ if 'marketplace_new_template_description' not in st.session_state:
     st.session_state.marketplace_new_template_description = ""
 if 'marketplace_new_template_author' not in st.session_state: # In a real system, this would be the logged-in user
     st.session_state.marketplace_new_template_author = "YourName"
+if 'cloud_deploy_db_type' not in st.session_state:
+    st.session_state.cloud_deploy_db_type = "Supabase (PostgreSQL)"
+if 'cloud_deploy_connection_string' not in st.session_state: # Conceptual
+    st.session_state.cloud_deploy_connection_string = "your_db_connection_string_here"
+if 'cloud_deploy_table_name' not in st.session_state:
+    st.session_state.cloud_deploy_table_name = "synthetic_data_table"
+if 'cloud_deploy_data_source' not in st.session_state: # To indicate which generated data to deploy
+    st.session_state.cloud_deploy_data_source = None
 
 
 
@@ -875,6 +883,10 @@ DOMAIN_PROMPT_TO_SCHEMA_MAP = {
         "order_id", "customer_name", "email", "product_name", "quantity", "price",
         "order_date", "shipping_address", "shipping_status", "payment_method", "product_category"
     ],
+    "customer data": [ # New entry for "customer data"
+        "id", "customer_name", "email", "phone", "address",
+        "date", "category", "status" # Adding some generic fields
+    ],
     "employee data": [
         "employee_id", "name", "email", "phone", "job", 
         "department", "salary", "date", 
@@ -1270,7 +1282,7 @@ def generate_synthetic_data(description):
         # Original logic for parsing individual fields if no domain was matched
         # Sort synonyms by length (descending) to match longer phrases first
         sorted_synonyms = sorted(FIELD_SYNONYM_TO_CANONICAL_MAP.keys(), key=len, reverse=True)
-        
+
         # Split prompt by common delimiters like ",", "and", "with" to isolate potential field names
         potential_field_phrases = re.split(r'\s*(?:,|and|with)\s*', remaining_description)
 
@@ -1278,15 +1290,15 @@ def generate_synthetic_data(description):
             phrase = phrase.strip()
             if not phrase:
                 continue
-            
+
             matched_canonical = None
             for user_synonym in sorted_synonyms:
-                if user_synonym in phrase: 
+                if user_synonym in phrase: # Check if the synonym is a substring of the phrase
                     canonical_field = FIELD_SYNONYM_TO_CANONICAL_MAP[user_synonym]
                     if canonical_field in CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP and canonical_field not in processed_canonical_fields:
                         matched_canonical = canonical_field
-                        break 
-            
+                        break # Found a match for this phrase part
+
             if matched_canonical:
                 schema_detail = CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP[matched_canonical]
                 parsed_schema_fields.append({
@@ -1294,13 +1306,47 @@ def generate_synthetic_data(description):
                     "type": schema_detail["type"],
                     "constraint": schema_detail["constraint"],
                     "pii_handling": st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake"), 
-                    "_original_canonical": matched_canonical 
+                    "_original_canonical": matched_canonical
                 })
                 processed_canonical_fields.add(matched_canonical)
                 display_name = schema_detail.get("display_name", matched_canonical.replace("_", " ").title())
-                if display_name in PII_FIELDS or matched_canonical in PII_FIELDS: 
+                if display_name in PII_FIELDS or matched_canonical in PII_FIELDS:
                     if display_name not in detected_pii: detected_pii.append(display_name)
                 if is_dpdp_pii(display_name) or is_dpdp_pii(matched_canonical):
+                    if display_name not in detected_dpdp: detected_dpdp.append(display_name)
+            elif phrase: # If no known synonym matched, treat the phrase as a potential novel field
+                novel_field_name_candidate = phrase
+                # Basic cleaning: remove "field like", "fields like", "column like", "columns like"
+                novel_field_name_candidate = re.sub(r'\b(?:fields?|columns?)\s+like\b', '', novel_field_name_candidate, flags=re.IGNORECASE).strip()
+                
+                if not novel_field_name_candidate or novel_field_name_candidate in processed_canonical_fields or any(f['name'].lower() == novel_field_name_candidate.lower() for f in parsed_schema_fields):
+                    continue
+
+                # Infer type for novel field
+                inferred_type = "string" # Default
+                inferred_constraint = ""
+                field_lower = novel_field_name_candidate.lower()
+
+                if any(kw in field_lower for kw in ["date", "time", "timestamp", "dob", "joining"]): inferred_type = "date"
+                elif any(kw in field_lower for kw in ["id", "count", "age", "quantity", "salary", "year", "number", "level"]): inferred_type = "int"; inferred_constraint = "0-1000" if "age" not in field_lower else "18-80"
+                elif any(kw in field_lower for kw in ["rate", "percent", "ratio", "score", "efficiency", "integrity", "price", "amount", "value", "balance", "temp", "humidity", "factor"]): inferred_type = "float"; inferred_constraint = "0.0-100.0"
+                elif "email" in field_lower: inferred_type = "email"
+                elif "phone" in field_lower: inferred_type = "phone"
+                elif any(kw in field_lower for kw in ["address", "location", "city", "state", "country", "pincode", "zipcode"]): inferred_type = "address"
+                elif "name" in field_lower and not any(kw in field_lower for kw in ["user", "company", "product", "brand", "model", "sensor", "item", "file"]): inferred_type = "name"
+
+                display_name = novel_field_name_candidate.replace("_", " ").title()
+                parsed_schema_fields.append({
+                    "name": display_name,
+                    "type": inferred_type,
+                    "constraint": inferred_constraint,
+                    "pii_handling": st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake"),
+                    "_original_canonical": display_name.lower().replace(" ", "_") # Treat as its own canonical for now
+                })
+                processed_canonical_fields.add(display_name.lower().replace(" ", "_"))
+                if display_name in PII_FIELDS: # Check PII for novel fields too
+                    if display_name not in detected_pii: detected_pii.append(display_name)
+                if is_dpdp_pii(display_name):
                     if display_name not in detected_dpdp: detected_dpdp.append(display_name)
 
     # Ensure we have at least some columns for simple generation
@@ -3283,7 +3329,7 @@ with tab_advanced_lab:
     st.header("🔬 Advanced Lab")
     st.markdown("Explore cutting-edge techniques for synthetic data generation, privacy enhancement, and quality assessment. These features are currently conceptual placeholders for future development.")
 
-    advanced_lab_options = ["🤖 AI-Powered Generation", "🛡️ Differential Privacy", "🏆 Quality Benchmarking", "🤝 Federated Generation", "🌐 Community Marketplace"]
+    advanced_lab_options = ["🤖 AI-Powered Generation", "🛡️ Differential Privacy", "🏆 Quality Benchmarking", "🤝 Federated Generation", "🌐 Community Marketplace", "☁️ Cloud Deploy (Sandbox)"]
     current_adv_lab_selection_idx = advanced_lab_options.index(st.session_state.advanced_lab_selection)
 
     st.session_state.advanced_lab_selection = st.radio(
@@ -3629,6 +3675,59 @@ with tab_advanced_lab:
             st.session_state.marketplace_new_template_name = ""
             st.session_state.marketplace_new_template_description = ""
             st.rerun()
+    
+    elif st.session_state.advanced_lab_selection == "☁️ Cloud Deploy (Sandbox)":
+        st.subheader("☁️ One-Click Deploy to Cloud/Sandbox (Conceptual)")
+        st.markdown("""
+        Instantly deploy your generated synthetic datasets to popular cloud databases or sandboxes for rapid prototyping,
+        demos, or integration testing. This feature aims to remove friction and accelerate your development workflow.
+
+        **Supported Databases (Conceptual):**
+        - Supabase (PostgreSQL)
+        - Neon (Serverless PostgreSQL)
+        - Google BigQuery
+        - ... and more in the future!
+
+        **Current Status:** This is a conceptual placeholder. Full implementation requires secure credential handling,
+        database client integrations, schema mapping, and robust error management.
+        """)
+        st.info("✨ **Vision for the Future:** Seamlessly move your synthetic data from generation to a live testing environment.")
+        st.markdown("---")
+
+        # Determine if any data is available for deployment
+        available_data_for_deploy = None
+        if st.session_state.get('prompt_generated_df') is not None:
+            st.session_state.cloud_deploy_data_source = "Text Prompt Output"
+            available_data_for_deploy = st.session_state.prompt_generated_df
+        elif st.session_state.get('generated_data_frames') and st.session_state.get('active_display_table_name') in st.session_state.generated_data_frames:
+            st.session_state.cloud_deploy_data_source = f"Smart Schema: {st.session_state.active_display_table_name}"
+            available_data_for_deploy = st.session_state.generated_data_frames[st.session_state.active_display_table_name]
+        elif st.session_state.get('synthetic_df_from_file_tab3') is not None:
+            st.session_state.cloud_deploy_data_source = "File-based Generation Output"
+            available_data_for_deploy = st.session_state.synthetic_df_from_file_tab3
+        elif st.session_state.get('playground_generated_df') is not None:
+            st.session_state.cloud_deploy_data_source = "Scenario Playground Output"
+            available_data_for_deploy = st.session_state.playground_generated_df
+        else:
+            st.session_state.cloud_deploy_data_source = None
+        
+        if st.session_state.cloud_deploy_data_source:
+            st.success(f"Data available for conceptual deployment from: **{st.session_state.cloud_deploy_data_source}** ({available_data_for_deploy.shape[0]} rows, {available_data_for_deploy.shape[1]} cols)")
+        else:
+            st.warning("No recently generated dataset found. Please generate some data first (e.g., via Text Prompt, Smart Schema, File-based, or Playground) to conceptually deploy it.")
+
+        st.session_state.cloud_deploy_db_type = st.selectbox(
+            "Select Target Database Type (Conceptual):",
+            options=["Supabase (PostgreSQL)", "Neon (Serverless PostgreSQL)", "Google BigQuery"],
+            index=["Supabase (PostgreSQL)", "Neon (Serverless PostgreSQL)", "Google BigQuery"].index(st.session_state.cloud_deploy_db_type),
+            key="cloud_deploy_db_selector"
+        )
+        st.text_input("Connection Details / API Key (Conceptual - Do Not Enter Real Credentials):", value=st.session_state.cloud_deploy_connection_string, key="cloud_deploy_conn_str", type="password", disabled=True)
+        st.session_state.cloud_deploy_table_name = st.text_input("Target Table Name:", value=st.session_state.cloud_deploy_table_name, key="cloud_deploy_table")
+
+        if st.button("Deploy to Cloud (Simulated)", key="cloud_deploy_btn", disabled=(available_data_for_deploy is None)):
+            st.info(f"Placeholder: Simulating deployment of '{st.session_state.cloud_deploy_data_source}' to '{st.session_state.cloud_deploy_db_type}' table '{st.session_state.cloud_deploy_table_name}'. This would involve secure connection and data transfer.")
+            st.success("Conceptual deployment initiated!")
 
 # Sidebar with Instructions
 st.sidebar.title(f"{APP_NAME} Guide")
@@ -3677,6 +3776,7 @@ st.sidebar.markdown(f"""
    - **🏆 Quality Benchmarking**: Assess synthetic data fidelity, utility, and privacy.
    - **🤝 Federated Generation**: Collaboratively generate data across organizations.
    - **🌐 Community Marketplace**: Share and discover dataset templates.
+   - **☁️ Cloud Deploy (Sandbox)**: Instantly deploy datasets to cloud DBs.
    - *These advanced features are currently conceptual placeholders.*
 
 8. **Language Support**:
