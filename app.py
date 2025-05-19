@@ -376,10 +376,28 @@ def generate_upi():
 def _generate_string_value(constraint, field_name, pii_strategy, edge_condition=None):
     if edge_condition and edge_condition.get('operator') == '==':
         return str(edge_condition['value'])
-    # Generate a sentence with a variable number of words, e.g., 3 to 7
-    # This makes it more like a short text string and more locale-aware than fake.text()
-    num_words = random.randint(3, 7)
-    return fake.sentence(nb_words=num_words)
+
+    field_name_lower = field_name.lower()
+
+    # Specific types of real text
+    if any(kw in field_name_lower for kw in ["motto", "tagline", "slogan", "banner"]):
+        return fake.catch_phrase()
+    elif any(kw in field_name_lower for kw in ["title", "headline", "subject", "header", "caption", "label"]):
+        # Prefer catch_phrase for titles as bs() can be too long or sentence-like
+        return fake.catch_phrase()
+    elif any(kw in field_name_lower for kw in ["campaign name", "project name", "initiative name", "program name", "course name"]): # More specific "names"
+        return fake.bs().capitalize() # Business Slogans often fit well here
+
+    # More descriptive text using real words (e.g., multiple bs sentences)
+    elif any(kw in field_name_lower for kw in ["description", "comment", "review", "notes", "summary", "feedback", "message", "post", "text", "details", "content", "abstract", "body", "script", "reason", "justification", "explanation", "purpose", "instructions", "guidelines"]):
+        num_bs_sentences = random.randint(1, 2) # Generate 1 or 2 "business speak" sentences
+        return " ".join([fake.bs().capitalize() + "." for _ in range(num_bs_sentences)]).strip()
+    # Default for other strings: a short list of random real words, or a single bs sentence
+    else:
+        if random.random() < 0.5: # 50% chance for a few random words
+            return " ".join(fake.words(nb=random.randint(4, 8))).capitalize() + "."
+        else: # 50% chance for a business-speak sentence
+            return fake.bs().capitalize() + "."
 
 def _generate_int_value(constraint, field_name, pii_strategy, edge_condition=None):
     min_default, max_default = 1, 1000
@@ -740,7 +758,7 @@ CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP = {
 
     # Finance Domain (Example, expand as needed)
     "transaction_id": {"type": "string", "constraint": "", "is_generic_numeric_id": True, "display_name": "Transaction ID"},
-    "account_number": {"type": "string", "constraint": "digits:10-12", "display_name": "Account Number"}, # Custom constraint type
+    "account_number": {"type": "string", "constraint": "digits:10-12", "is_digit_sequence": True, "display_name": "Account Number"}, # Custom constraint type
     "bank_name": {"type": "string", "constraint": "", "is_faker_company": True, "suffix": " Bank", "display_name": "Bank Name"},
     "balance": {"type": "float", "constraint": "-5000-50000", "display_name": "Balance"},
     "reference_number": {"type": "string", "constraint": "", "is_reference_number_pattern": True, "display_name": "Reference Number"},
@@ -789,7 +807,7 @@ CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP = {
     # ... Add ALL other canonical fields from FIELD_GENERATORS here, mapping them to a type and constraint
 
     # Academic/Research Domain
-    "publication_title": {"type": "string", "constraint": "", "is_faker_sentence": True, "display_name": "Publication Title"}, # Use sentence for title
+    "publication_title": {"type": "string", "constraint": "", "display_name": "Publication Title"}, # Will use _generate_string_value
     "author_names": {"type": "name", "constraint": "", "is_multi_name": True, "display_name": "Author Names"}, # Special handling for multiple authors
     "journal_name": {"type": "category", "constraint": ",".join(ACADEMIC_JOURNALS_LIST), "display_name": "Journal Name"},
     "publication_year": {"type": "int", "constraint": "2000-2024", "display_name": "Publication Year"},
@@ -800,10 +818,10 @@ CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP = {
 
     # Social Media Domain
     "username": {"type": "string", "constraint": "", "is_faker_user_name": True, "display_name": "Username"},
-    "post_text": {"type": "string", "constraint": "", "is_faker_paragraph": True, "display_name": "Post Text"},
+    "post_text": {"type": "string", "constraint": "", "display_name": "Post Text"}, # Will use _generate_string_value
     "like_count": {"type": "int", "constraint": "0-10000", "display_name": "Like Count"},
     "share_count": {"type": "int", "constraint": "0-5000", "display_name": "Share Count"},
-    "comment_text": {"type": "string", "constraint": "", "is_faker_sentence": True, "display_name": "Comment Text"},
+    "comment_text": {"type": "string", "constraint": "", "display_name": "Comment Text"}, # Will use _generate_string_value
     "hashtags": {"type": "category", "constraint": ",".join(COMMON_HASHTAGS_LIST), "is_multi_category": True, "display_name": "Hashtags"},
 
     # IoT/Sensor Domain
@@ -1327,8 +1345,16 @@ def generate_synthetic_data(description):
                 inferred_constraint = ""
                 field_lower = novel_field_name_candidate.lower()
 
-                if any(kw in field_lower for kw in ["date", "time", "timestamp", "dob", "joining"]): inferred_type = "date"
-                elif any(kw in field_lower for kw in ["id", "count", "age", "quantity", "salary", "year", "number", "level"]): inferred_type = "int"; inferred_constraint = "0-1000" if "age" not in field_lower else "18-80"
+                if any(kw in field_lower for kw in ["date", "time", "timestamp", "dob", "joining"]):
+                    inferred_type = "date"
+                elif any(kw in field_lower for kw in ["id", "count", "age", "quantity", "salary", "year", "number", "level", "hours", "duration"]): # Added "hours", "duration"
+                    inferred_type = "int"
+                    if "age" in field_lower:
+                        inferred_constraint = "18-80"
+                    elif any(h_kw in field_lower for h_kw in ["hours", "duration"]): # Specific constraint for hours/duration
+                        inferred_constraint = "0-100" # e.g., 0 to 100 hours
+                    else:
+                        inferred_constraint = "0-1000"
                 elif any(kw in field_lower for kw in ["rate", "percent", "ratio", "score", "efficiency", "integrity", "price", "amount", "value", "balance", "temp", "humidity", "factor"]): inferred_type = "float"; inferred_constraint = "0.0-100.0"
                 elif "email" in field_lower: inferred_type = "email"
                 elif "phone" in field_lower: inferred_type = "phone"
@@ -1412,6 +1438,7 @@ def generate_synthetic_data(description):
             "is_multi_name": lambda: ["; ".join([fake.name() for _ in range(random.randint(1, 4))]) for _ in range(num_rows)],
             "is_multi_category": lambda: [", ".join(random.sample(schema_details_for_canonical['constraint'].split(','), k=random.randint(1, min(3, len(schema_details_for_canonical['constraint'].split(',')))))) for _ in range(num_rows)] if schema_details_for_canonical['constraint'] else [fake.word() for _ in range(num_rows)],
             "is_faker_city_if_empty_constraint": lambda: [random.choice(schema_details_for_canonical['constraint'].split(',')) for _ in range(num_rows)] if schema_details_for_canonical['constraint'] and schema_details_for_canonical['constraint'].strip() else [fake.word() for _ in range(num_rows)],
+            "is_digit_sequence": lambda: [''.join(random.choices('0123456789', k=random.randint(int(schema_details_for_canonical['constraint'].split(':')[1].split('-')[0]), int(schema_details_for_canonical['constraint'].split(':')[1].split('-')[1])))) for _ in range(num_rows)] if schema_details_for_canonical.get('constraint', '').startswith('digits:') else [''.join(random.choices('0123456789', k=10)) for _ in range(num_rows)], # Fallback to 10 digits if constraint malformed
         }
         
         # Check combined condition for company + suffix list *before* general company name generation
@@ -2272,6 +2299,12 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
                 st.session_state.table_schemas[st.session_state.active_table_name].append(new_field)
             st.session_state.generated_data_frames = {} # Clear previously generated multi-table data
             st.session_state.initial_schema_populated = True # Mark as populated (by template)
+            # Clear data from other generation paths
+            st.session_state.prompt_generated_df = None
+            st.session_state.uploaded_df_for_schema = None
+            st.session_state.playground_generated_df = None
+            st.session_state.newly_generated_df_tab3 = None
+            st.session_state.synthetic_df_from_file_tab3 = None
         else: # User selected "None (Custom Schema)"
             st.session_state.table_schemas[st.session_state.active_table_name] = [] # Clear active table's schema
             st.session_state.generated_data_frames = {}
@@ -2486,10 +2519,16 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
                 st.session_state.generated_data_frames = generate_hierarchical_data(
                     st.session_state.table_schemas,
                     st.session_state.relationships,
-                    num_rows, 
+                    num_rows,
                     st.session_state.edge_cases,
                     st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")
                 )
+                # Clear data from other generation paths
+                st.session_state.prompt_generated_df = None
+                st.session_state.uploaded_df_for_schema = None
+                st.session_state.playground_generated_df = None
+                st.session_state.newly_generated_df_tab3 = None
+                st.session_state.synthetic_df_from_file_tab3 = None
                 if st.session_state.generated_data_frames:
                     st.success("Hierarchical data generated successfully!")
                     if not st.session_state.active_display_table_name or st.session_state.active_display_table_name not in st.session_state.generated_data_frames:
@@ -2845,6 +2884,15 @@ with tab1:
         st.session_state.prompt_generated_df = synthetic_df # Store for tab2 access
 
         if synthetic_df is not None:
+            # Clear data from other generation paths
+            st.session_state.uploaded_df_for_schema = None
+            st.session_state.generated_data_frames = {} # From Smart Schema
+            st.session_state.active_display_table_name = None
+            st.session_state.playground_generated_df = None
+            st.session_state.newly_generated_df_tab3 = None
+            st.session_state.synthetic_df_from_file_tab3 = None
+
+        if synthetic_df is not None:
             st.subheader("📊 Generated Synthetic Data")
             st.dataframe(synthetic_df)
 
@@ -2917,14 +2965,13 @@ with tab1:
                 if dpdp_cols_prompt_specific:
                     pdf.cell(200, 10, txt=f"Detected DPDP-Specific Fields: {', '.join(dpdp_cols_prompt_specific)}", ln=True)
                 pdf.cell(200, 10, txt=f"Compliance Readiness Score: {compliance_score_prompt:.0f}%", ln=True)
-                pdf.ln(10)
-                pdf.cell(200, 10, txt="Note: Scores are illustrative. Conduct thorough validation.", ln=True)
+                pdf.ln(10) # Add some space before the note
+                pdf.cell(200, 10, txt="Note: Scores are illustrative. Conduct thorough validation.", ln=True) # Add the note
 
-                buffer_prompt_pdf = io.BytesIO()
-                pdf.output(buffer_prompt_pdf)
+                pdf_bytes = pdf.output(dest='S').encode('latin-1') # Output to string and encode
                 st.download_button(
                     label="Download PDF Now",
-                    data=buffer_prompt_pdf.getvalue(),
+                    data=pdf_bytes,
                     file_name="prompt_data_compliance_report.pdf",
                     mime="application/pdf",
                     key="download_pdf_prompt_data_final"
@@ -2997,13 +3044,43 @@ with tab3:
 
     if uploaded_file:
         try:
+            # Consider Streamlit's server.maxUploadSize for a server-level limit.
+            # You could add an in-app check too, though maxUploadSize is often preferred.
+            # MAX_APP_FILE_SIZE = 50 * 1024 * 1024 # 50 MB
+            # if uploaded_file.size > MAX_APP_FILE_SIZE:
+            #     st.error(f"File is too large. Maximum allowed size is {MAX_APP_FILE_SIZE / (1024*1024)} MB.")
+            #     # Clear related session state if file is rejected
+            #     st.session_state.uploaded_df_for_schema = None
+            #     st.session_state.file_action_tab3 = None
+            #     st.session_state.newly_generated_df_tab3 = None
+            #     st.session_state.synthetic_df_from_file_tab3 = None
+            #     # return # Stop further processing in this tab
+
             if uploaded_file.name.endswith(".csv"):
                 df = pd.read_csv(uploaded_file)
             else:
                 df = pd.read_excel(uploaded_file)
-            
-            st.session_state.uploaded_df_for_schema = df # Store for tab2 access
 
+        except pd.errors.ParserError as pe:
+            st.error(f"Error parsing the file: {pe}. Please ensure the file is a valid CSV or Excel file.")
+            df = None
+        except MemoryError:
+            st.error("Memory Error: The file is too large or complex to process with available memory. Try a smaller file.")
+            df = None
+        except Exception as e:
+            st.error(f"An unexpected error occurred while processing the file: {e}")
+            df = None
+
+        if df is None:
+            # Ensure related states are reset if file processing failed
+            st.session_state.uploaded_df_for_schema = None
+            st.session_state.file_action_tab3 = None
+            st.session_state.newly_generated_df_tab3 = None
+            st.session_state.synthetic_df_from_file_tab3 = None
+            # return # Stop further processing in this tab if file load failed
+        else:
+            # If df is loaded successfully, proceed
+            st.session_state.uploaded_df_for_schema = df # Store for tab2 access
             # PII Detection on Uploaded File
             pii_columns = [col for col in df.columns if col in PII_FIELDS]
             dpdp_columns = [col for col in df.columns if is_dpdp_pii(col)]
@@ -3027,6 +3104,12 @@ with tab3:
             if st.session_state.get('uploaded_file_name_tab3') != uploaded_file.name:
                 st.session_state.file_action_tab3 = None
                 st.session_state.uploaded_file_name_tab3 = uploaded_file.name
+                # Clear synthetic data derived from a *previous* file
+                st.session_state.newly_generated_df_tab3 = None
+                st.session_state.synthetic_df_from_file_tab3 = None
+                # Also clear data from other generation tabs as a new base file is being introduced
+                st.session_state.prompt_generated_df = None
+                st.session_state.generated_data_frames = {}
                 st.session_state.num_rows_for_file_upload_tab3 = len(df) # Reset num_rows default
 
             st.markdown("---")
@@ -3074,6 +3157,12 @@ with tab3:
                     st.session_state.newly_generated_df_tab3 = newly_generated_df # Store for drift detection
                     # Concatenate original df with the newly generated_df
                     combined_df = pd.concat([df, newly_generated_df], ignore_index=True)
+
+                    # Clear data from other generation paths
+                    st.session_state.prompt_generated_df = None
+                    st.session_state.generated_data_frames = {} # From Smart Schema
+                    st.session_state.active_display_table_name = None
+                    st.session_state.playground_generated_df = None
                     st.session_state.synthetic_df_from_file_tab3 = combined_df # Store the combined df
 
                 if 'synthetic_df_from_file_tab3' in st.session_state and st.session_state.synthetic_df_from_file_tab3 is not None:
@@ -3179,12 +3268,8 @@ with tab3:
                     pdf_upload.ln(10)
                     pdf_upload.cell(200, 10, txt="Note: This report reflects analysis of the original uploaded data.", ln=True)
                     buffer_upload_pdf = io.BytesIO()
-                    pdf_upload.output(buffer_upload_pdf)
-                    st.download_button(label="Download PDF Now", data=buffer_upload_pdf.getvalue(), file_name="original_data_report.pdf", mime="application/pdf", key="download_pdf_upload_final_tab3_compliance")
-
-        except Exception as e:
-            st.error(f"Error processing uploaded file: {e}")
-            st.session_state.uploaded_df_for_schema = None # Clear on error
+                    pdf_upload_bytes = pdf_upload.output(dest='S').encode('latin-1') # Output to string and encode
+                    st.download_button(label="Download PDF Now", data=pdf_upload_bytes, file_name="original_data_report.pdf", mime="application/pdf", key="download_pdf_upload_final_tab3_compliance")
 
 with tab4:
     st.header("🎲 Scenario & Edge Case Playground")
@@ -3259,6 +3344,13 @@ with tab4:
                 table_name_for_conditions=st.session_state.playground_table_name_for_conditions
             )
             if st.session_state.playground_generated_df is not None:
+                # Clear data from other main generation paths
+                st.session_state.prompt_generated_df = None
+                st.session_state.uploaded_df_for_schema = None
+                st.session_state.generated_data_frames = {}
+                st.session_state.active_display_table_name = None
+                st.session_state.newly_generated_df_tab3 = None
+                st.session_state.synthetic_df_from_file_tab3 = None
                 st.success("Scenario data generated!")
             else:
                 st.error("Failed to generate scenario data. Check if schema is valid.")
@@ -3322,6 +3414,12 @@ with tab5:
                 st.session_state.selected_template_name = template_name # Update Tab 2's dropdown state
                 st.session_state.initial_schema_populated = True
                 st.session_state.generated_data_frames = {} # Clear any old generated data
+                # Clear data from other generation paths
+                st.session_state.prompt_generated_df = None
+                st.session_state.uploaded_df_for_schema = None
+                st.session_state.playground_generated_df = None
+                st.session_state.newly_generated_df_tab3 = None
+                st.session_state.synthetic_df_from_file_tab3 = None
                 st.success(f"Template '{template_name}' loaded into table '{target_table_name_for_gallery_load}' in the Smart Schema Editor. Please navigate there to continue.")
                 # st.rerun() # Not strictly necessary here, success message guides user
 
