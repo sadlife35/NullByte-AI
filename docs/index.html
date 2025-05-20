@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nullbyte AI</title>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Particle.js -->
+  <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Manrope', sans-serif;
+      color: #ffffff;
+      background: linear-gradient(270deg, #000000, #1a1a1a, #333333);
+      background-size: 600% 600%;
+      animation: gradientBG 15s ease infinite;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    #particles-js {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+    }
+
+    header {
+      padding: 3rem 2rem 2rem;
+      text-align: center;
+    }
+
+    header h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    header p {
+      font-size: 1.2rem;
+      color: #cccccc;
+      margin-top: 0.5rem;
+    }
+
+    .buttons {
+      margin-top: 2rem;
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 0.9rem 2rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      text-decoration: none;
+    }
+
+    .btn-try {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid #cccccc;
+      color: #ffffff;
+    }
+
+    .btn-try:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+
+    .section {
+      padding: 4rem 2rem;
+      text-align: center;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .feature-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+      padding: 2rem;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: all 0.3s ease;
+      text-align: left;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 10px 25px rgba(255, 255, 255, 0.1);
+    }
+
+    /* New styles for How it Works & Who's it For section */
+    .info-sections {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 3rem;
+      margin-top: 3rem;
+      text-align: left;
+    }
+
+    .info-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(12px);
+      padding: 2rem 2.5rem; 
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 0 15px rgba(255, 255, 255, 0.05);
+      transition: all 0.3s ease;
+    }
+
+    .info-card:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 12px 30px rgba(255, 255, 255, 0.12);
+    }
+
+    .info-column > .info-card { /* Make info-cards within info-columns also able to grow */
+      flex-grow: 1;
+    }
+
+    #how-it-works.info-card { /* Target the "How It Works" card */
+      display: flex; /* Make it a flex container */
+      flex-direction: column; /* Stack its children vertically */
+    }
+
+    #whos-it-for.info-card { /* Target specifically the "Who's It For" card */
+      align-self: start; /* Align to the start of the grid cell if its content is shorter */
+    }
+
+    #key-technologies.info-card { /* Target specifically the "Key Technologies" card */
+      padding: 1.5rem 2rem; /* Keep reduced padding */
+    }
+
+    .info-card h3 {
+      font-weight: 700;
+      margin-bottom: 1rem;
+      font-size: 1.8rem;
+      color: #ffffff;
+    }
+
+    .info-card ul {
+      list-style-type: disc;
+      margin-left: 1.2rem;
+      margin-top: 1rem;
+      color: #cccccc; 
+      font-size: 1rem;
+      line-height: 1.5;
+    }
+    #how-it-works.info-card ul { /* Target the list within "How It Works" */
+      flex-grow: 1; /* Allow the list to take up remaining vertical space */
+    }
+    .pricing-card { /* Basic styling for pricing cards */
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 2rem;
+      border-radius: 12px;
+    }
+    .info-column { /* New style for explicit columns */
+      display: flex;
+      flex-direction: column;
+      gap: 3rem; /* Maintain the same gap as the grid had between rows */
+    }
+
+    footer {
+      padding: 2rem;
+      text-align: center;
+      font-size: 0.9rem;
+      color: #aaaaaa;
+    }
+
+    @media (max-width: 900px) {
+      .info-sections {
+        grid-template-columns: 1fr;
+      }
+      .info-column { /* Stack columns on smaller screens */
+        gap: 3rem; /* Or adjust as needed for single column layout */
+      }
+    }
+
+    @media (max-width: 600px) {
+      header h1 {
+        font-size: 2.2rem;
+      }
+
+      .btn {
+        width: 100%;
+        text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Particle Background -->
+  <div id="particles-js"></div>
+
+  <!-- Header -->
+  <header>
+    <h1>Nullbyte AI</h1>
+    <p>The future of AI-driven development, simplified.</p>
+
+    <div class="buttons">
+      <a href="https://nullbyteai.streamlit.app/" class="btn btn-try" target="_blank">Try Now</a>
+    </div>
+  </header>
+
+  <!-- Features Section -->
+  <section class="section" id="demo">
+    <h2 style="font-size: 2rem; margin-bottom: 2rem;">Why Nullbyte AI?</h2>
+    <div class="features">
+      <div class="feature-card">
+        <h3>🚀 Versatile & Powerful Generation</h3>
+        <p>Go from simple text prompts to intricate multi-table schemas with custom relationships and edge case injection. Generate the exact data you need, effortlessly.</p>
+      </div>
+      <div class="feature-card">
+        <h3>🛡️ Privacy-First by Design</h3>
+        <p>Advanced PII handling, DPDP Act compliance focus, and a clear roadmap towards Differential Privacy. Generate with confidence.</p>
+      </div>
+      <div class="feature-card">
+        <h3>💡 Ethical & Fair Data Synthesis</h3>
+        <p>Integrated bias detection, ethical AI scorecards, and data drift analysis ensure your synthetic data is responsible and reliable.</p>
+      </div>
+      <div class="feature-card">
+        <h3>🇮🇳 India-Centric, Globally Relevant</h3>
+        <p>Tailored for the Indian context with language support, while built on principles applicable worldwide. Understands local nuances like DPDP.</p>
+      </div>
+      <div class="feature-card">
+        <h3>📈 Built for Innovators & Teams</h3>
+        <p>An intuitive tool for solo developers, lean startups, and enterprise teams. Accelerate development, testing, and research without compromising on data quality or privacy.</p>
+      </div>
+      <div class="feature-card">
+        <h3>🌐 Future-Ready Platform</h3>
+        <p>Our vision includes cutting-edge features like AI-powered deep generative models, federated data generation, quality benchmarking, and a thriving community marketplace.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works & Who's It For Section -->
+  <section class="section">
+    <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">How It Works & Who's It For</h2>
+    <div class="info-sections">
+      <!-- Left Column -->
+      <div class="info-column">
+        <div class="info-card" id="how-it-works">
+          <h3>Streamlined Data Synthesis</h3>
+          <!-- Image/GIF Placeholder -->
+          <div style="text-align: center; margin-bottom: 1.5rem;">
+            <img src="https://images.pexels.com/photos/577585/pexels-photo-577585.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=600&h=350" 
+                 alt="Nullbyte AI in action - conceptual visual" 
+                 style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #333;">
+            <!-- 
+              Replace the src above with your actual image/GIF URL. 
+              Consider a GIF showing a quick demo or a compelling screenshot.
+            -->
+          </div>
+          <ul>
+            <li><strong>Describe or Upload:</strong> Start with a text prompt, upload a file, or use our Smart Schema Editor.</li>
+            <li><strong>Customize & Configure:</strong> Define data types, PII handling, relationships, and even inject edge cases.</li>
+            <li><strong>Generate & Analyze:</strong> Create your synthetic dataset and review built-in bias, PII, and drift reports.</li>
+            <li><strong>Download & Integrate:</strong> Get your AI-ready data in CSV/Excel and integrate it into your workflows.</li>
+          </ul>
+        </div>
+      </div>
+      <!-- Right Column -->
+      <div class="info-column">
+        <div class="info-card" id="whos-it-for">
+          <h3>Who's It For</h3>
+          <ul>
+            <li>Solo developers looking to rapidly prototype AI models with realistic data.</li>
+            <li>Lean startup teams who need privacy-aware synthetic data without large overhead.</li>
+            <li>Enterprises requiring compliance with GDPR and DPDP while innovating safely.</li>
+            <li>Researchers and data scientists seeking high-quality synthetic datasets.</li>
+          </ul>
+        </div>
+        <div class="info-card" id="key-technologies">
+          <h3>Key Technologies & Principles</h3>
+          <ul>
+            <li><strong>Advanced Statistical Modeling:</strong> For accurate representation of data distributions and correlations.</li>
+            <li><strong>AI & Machine Learning:</strong> Leveraging AI for intelligent schema inference and future deep generative models.</li>
+            <li><strong>Privacy-Enhancing Techniques (PETs):</strong> Core to our PII handling, with a roadmap for Differential Privacy.</li>
+            <li><strong>Python & Streamlit:</strong> Built with a modern, efficient stack for rapid development and a great user experience.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <!-- Repeated CTA -->
+    <div class="buttons" style="margin-top: 4rem;">
+      <a href="https://nullbyteai.streamlit.app/" class="btn btn-try" target="_blank">Try Nullbyte AI Now</a>
+    </div>
+  </section>
+
+  <!-- Pricing Section Placeholder -->
+  <section class="section" id="pricing">
+    <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">Plans & Pricing (Conceptual)</h2>
+    <p style="color: #cccccc; margin-bottom: 3rem; max-width: 700px; margin-left: auto; margin-right: auto;">
+      Choose a plan that fits your needs. We're working on flexible options for individuals, startups, and enterprises.
+    </p>
+    <div class="features"> <!-- Reusing .features for grid layout -->
+      <div class="pricing-card feature-card"> <!-- Reusing .feature-card for base style -->
+        <h3>Free Tier / Community</h3>
+        <p style="margin-top: 1rem; color: #e0e0e0;">Access core generation features, limited usage, community support. Perfect for exploration and small projects.</p>
+        <a href="#" class="btn btn-try" style="margin-top: 2rem; display: inline-block;">Get Started Free</a>
+      </div>
+      <div class="pricing-card feature-card">
+        <h3>Pro / Startup</h3>
+        <p style="margin-top: 1rem; color: #e0e0e0;">Advanced features, higher limits, priority support, access to premium templates. Ideal for growing teams.</p>
+        <a href="#" class="btn btn-try" style="margin-top: 2rem; display: inline-block;">Learn More</a>
+      </div>
+      <div class="pricing-card feature-card">
+        <h3>Enterprise</h3>
+        <p style="margin-top: 1rem; color: #e0e0e0;">Custom solutions, dedicated support, federated learning options, on-premise deployment. Tailored for large organizations.</p>
+        <a href="#" class="btn btn-try" style="margin-top: 2rem; display: inline-block;">Contact Sales</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    © 2025 Nullbyte AI. All rights reserved.
+  </footer>
+
+  <!-- Particle Config -->
+  <script>
+    particlesJS("particles-js", {
+      "particles": {
+        "number": { "value": 50 },
+        "size": { "value": 3 },
+        "color": { "value": "#ffffff" },
+        "line_linked": {
+          "enable": true,
+          "distance": 150,
+          "color": "#ffffff"
+        },
+        "move": {
+          "speed": 1
+        }
+      },
+      "interactivity": {
+        "events": {
+          "onhover": { "enable": true, "mode": "repulse" }
+        }
+      }
+    });
+  </script>
+
+</body>
+</html>

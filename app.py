@@ -102,6 +102,12 @@ if 'deep_model_prompt' not in st.session_state:
     st.session_state.deep_model_prompt = ""
 if 'dp_epsilon' not in st.session_state:
     st.session_state.dp_epsilon = 1.0 # Default Epsilon for DP
+if 'nlp_model_prompt' not in st.session_state:
+    st.session_state.nlp_model_prompt = "Generate a short story about a futuristic city."
+if 'image_model_prompt' not in st.session_state:
+    st.session_state.image_model_prompt = "A futuristic cityscape at sunset, digital art"
+if 'nlp_model_task' not in st.session_state:
+    st.session_state.nlp_model_task = "Creative Writing"
 if 'dp_mechanism_numeric' not in st.session_state:
     st.session_state.dp_mechanism_numeric = "Laplace Mechanism"
 if 'dp_mechanism_categorical' not in st.session_state:
@@ -3444,8 +3450,9 @@ with tab_advanced_lab:
         st.subheader("🚀 AI-Powered Generation (Deep Generative Models)")
         st.markdown("""
         This section is for integrating advanced deep learning models like Generative Adversarial Networks (GANs),
-        Variational Autoencoders (VAEs), and Transformer-based models (e.g., GPT) for synthetic data generation.
-        These models can produce highly realistic and complex data, capturing intricate patterns from the original dataset
+        Variational Autoencoders (VAEs), Transformer-based models (e.g., GPT for text), and diffusion models (for images)
+        for synthetic data generation. These models can produce highly realistic and complex data,
+        capturing intricate patterns from original datasets, generating creative text, or even synthesizing images.
         or generating creative text based on prompts.
 
         **Current Status:** This is a placeholder for future development. Full integration of these models
@@ -3455,7 +3462,7 @@ with tab_advanced_lab:
 
         st.session_state.deep_model_type = st.selectbox(
             "Select Deep Generative Model Type:",
-            options=["GAN (Tabular)", "VAE (Tabular)", "Transformer/GPT (Text/Structured from Prompt)"],
+            options=["GAN (Tabular)", "VAE (Tabular)", "Transformer/GPT (Text/Structured from Prompt)", "NLP Model (Advanced Text Generation)", "Image Generation Model (e.g., Diffusion)"],
             key="deep_model_selector",
             help="Choose the type of deep learning model to use."
         )
@@ -3494,6 +3501,32 @@ with tab_advanced_lab:
             if st.button("Generate with Transformer/GPT Model", key="deep_model_generate_gpt_btn", disabled=not st.session_state.deep_model_prompt):
                 st.info("Placeholder: Simulating generation with a Transformer/GPT model. This would involve API calls or local model inference in a real scenario.")
                 st.success(f"Conceptual generation based on prompt: '{st.session_state.deep_model_prompt[:100]}...' complete! (No actual data generated in this placeholder).")
+
+        elif st.session_state.deep_model_type == "NLP Model (Advanced Text Generation)":
+            st.markdown("""
+            Advanced NLP models can perform a variety of text generation tasks beyond simple prompting, such as summarization,
+            translation, question answering based on context, or more elaborate creative writing.
+            """)
+            st.session_state.nlp_model_task = st.selectbox("Select NLP Task (Conceptual):", ["Creative Writing", "Summarization", "Question Answering", "Code Generation"], key="nlp_task_selector")
+            st.session_state.nlp_model_prompt = st.text_area("Enter your detailed prompt or context for the NLP model:", height=150, value=st.session_state.nlp_model_prompt, key="nlp_model_prompt_input")
+            st.text_input("NLP Model Parameters (e.g., model_name, max_length - conceptual):", value="model_name=gpt-3.5-turbo, max_length=1024", key="nlp_model_params", disabled=True)
+
+            if st.button("Generate Text with Advanced NLP Model", key="nlp_model_generate_btn", disabled=not st.session_state.nlp_model_prompt):
+                st.info(f"Placeholder: Simulating '{st.session_state.nlp_model_task}' with an advanced NLP model. This would involve significant computation or API calls.")
+                st.success(f"Conceptual NLP generation for task '{st.session_state.nlp_model_task}' complete! (No actual text generated in this placeholder).")
+
+        elif st.session_state.deep_model_type == "Image Generation Model (e.g., Diffusion)":
+            st.markdown("""
+            Image generation models (like DALL-E, Stable Diffusion, Midjourney) can create novel images from textual descriptions.
+            This can be useful for generating synthetic image datasets for computer vision tasks.
+            """)
+            st.session_state.image_model_prompt = st.text_input("Enter your image prompt (e.g., 'a photo of an astronaut riding a horse on the moon'):", value=st.session_state.image_model_prompt, key="image_model_prompt_input")
+            st.text_input("Image Model Parameters (e.g., resolution, style - conceptual):", value="resolution=512x512, style=photorealistic", key="image_model_params", disabled=True)
+
+            if st.button("Generate Image with Model", key="image_model_generate_btn", disabled=not st.session_state.image_model_prompt):
+                st.info("Placeholder: Simulating image generation. This would involve API calls or powerful local GPU inference.")
+                st.image("https://via.placeholder.com/256x256.png?text=Conceptual+Image", caption=f"Conceptual image for: '{st.session_state.image_model_prompt}' (Placeholder)")
+                st.success("Conceptual image generation complete!")
 
     elif st.session_state.advanced_lab_selection == "🛡️ Differential Privacy":
         # Content from old tab_adv_privacy
