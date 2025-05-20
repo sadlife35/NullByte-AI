@@ -67,6 +67,7 @@
     }
 
     .btn {
+      display: inline-block; /* Allow width/min-width and text-align to apply */
       padding: 0.9rem 2rem;
       font-size: 1rem;
       border: none;
@@ -75,6 +76,8 @@
       font-weight: 600;
       transition: all 0.3s ease;
       text-decoration: none;
+      min-width: 12rem; /* Set a minimum width for all buttons */
+      text-align: center; /* Center text within the button */
     }
 
     .btn-try {
@@ -181,6 +184,40 @@
       padding: 2rem;
       border-radius: 12px;
     }
+    .testimonial-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      padding: 1.5rem;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-style: italic;
+    }
+    .testimonial-card p { color: #e0e0e0; }
+    .testimonial-card .author { font-style: normal; margin-top: 1rem; font-weight: 600; color: #ffffff; text-align: right; }
+    .faq-item {
+      background: rgba(255, 255, 255, 0.05);
+      margin-bottom: 1rem;
+      padding: 1.5rem;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      text-align: left;
+    }
+    .faq-item summary {
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 1.1rem;
+      color: #ffffff;
+    }
+    .faq-item p {
+      margin-top: 0.75rem;
+      color: #cccccc;
+      line-height: 1.6;
+    }
+    .pricing-card { /* Basic styling for pricing cards */
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 2rem;
+      border-radius: 12px;
+    }
     .info-column { /* New style for explicit columns */
       display: flex;
       flex-direction: column;
@@ -224,11 +261,22 @@
   <header>
     <h1>Nullbyte AI</h1>
     <p>The future of AI-driven development, simplified.</p>
+    <p style="margin-top: 1rem; font-size: 1rem; color: #b0b0b0;">Connect with innovators, get support, and help shape our platform!</p>
 
     <div class="buttons">
       <a href="https://nullbyteai.streamlit.app/" class="btn btn-try" target="_blank">Try Now</a>
+      <a href="https://discord.gg/yourcommunitylink" class="btn btn-try" target="_blank">Join Community</a> 
     </div>
   </header>
+
+  <!-- Our Vision Section -->
+  <section class="section" id="vision" style="padding-top: 2rem; padding-bottom: 2rem;"> <!-- Reduced padding for a concise section -->
+    <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: #e0e0e0;">Our Vision</h2>
+    <p style="font-size: 1.1rem; color: #cccccc; max-width: 800px; margin: 0 auto; line-height: 1.6;">
+      At Nullbyte AI, we envision a world where data is an enabler, not a bottleneck. We're committed to empowering developers and businesses with ethical, intelligent, and accessible synthetic data solutions, fostering innovation while championing privacy and fairness in the AI landscape, starting with a deep understanding of India's unique needs.
+    </p>
+  </section>
+
 
   <!-- Features Section -->
   <section class="section" id="demo">
@@ -315,6 +363,28 @@
     </div>
   </section>
 
+  <!-- Roadmap Highlights Section -->
+  <section class="section" id="roadmap">
+    <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">What's Next: Roadmap Highlights</h2>
+    <p style="color: #cccccc; margin-bottom: 3rem; max-width: 700px; margin-left: auto; margin-right: auto;">
+      We're constantly innovating. Here's a sneak peek at what we're building:
+    </p>
+    <div class="features"> <!-- Reusing .features for grid layout -->
+      <div class="feature-card"> <!-- Reusing .feature-card for styling -->
+        <h3>🤖 Advanced Deep Generative Models</h3>
+        <p>Implementing state-of-the-art GANs and VAEs for even more realistic and complex data synthesis.</p>
+      </div>
+      <div class="feature-card">
+        <h3>🔗 Enhanced Integrations & API</h3>
+        <p>Seamless connections with popular data warehouses, MLOps platforms, and a robust API for programmatic access.</p>
+      </div>
+      <div class="feature-card">
+        <h3>🌍 Expanded Language & Domain Support</h3>
+        <p>Broadening our India-specific language capabilities and adding specialized generators for more industries.</p>
+      </div>
+    </div>
+  </section>
+
   <!-- Pricing Section Placeholder -->
   <section class="section" id="pricing">
     <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">Plans & Pricing (Conceptual)</h2>
@@ -339,6 +409,34 @@
       </div>
     </div>
   </section>
+
+  <!-- FAQ Section -->
+  <section class="section" id="faq">
+    <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">Frequently Asked Questions</h2>
+    <div style="max-width: 800px; margin: 0 auto;">
+      <details class="faq-item">
+        <summary>What kind of data can I generate with Nullbyte AI?</summary>
+        <p>Nullbyte AI can generate a wide range of structured and semi-structured data, from simple tabular datasets to complex multi-table relational schemas. You can define data types, relationships, and even inject specific edge cases based on text prompts or by uploading existing schema information.</p>
+      </details>
+      <details class="faq-item">
+        <summary>How does Nullbyte AI handle data privacy and compliance?</summary>
+        <p>Privacy is at our core. We offer advanced PII (Personally Identifiable Information) handling, with a specific focus on India's DPDP Act. Our roadmap includes Differential Privacy for even stronger guarantees. We also provide tools for bias detection and ethical AI scorecards.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Is there a free tier available?</summary>
+        <p>Yes, we plan to offer a Free Tier / Community plan that provides access to core generation features with some usage limits. It's perfect for exploring Nullbyte AI and for small projects. Check our conceptual pricing for more details.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Who is Nullbyte AI for?</summary>
+        <p>Nullbyte AI is designed for solo developers, lean startup teams, enterprises, researchers, and data scientists who need high-quality, privacy-aware synthetic data to accelerate development, testing, and research without compromising on data quality or privacy.</p>
+      </details>
+      <details class="faq-item">
+        <summary>What makes Nullbyte AI different?</summary>
+        <p>Our key differentiators include a strong India-first approach with DPDP compliance and local language understanding, advanced out-of-the-box privacy and bias tools, a developer/startup-friendly workflow, and a vision for a community-driven platform with explainability at its heart.</p>
+      </details>
+    </div>
+  </section>
+
 
   <!-- Footer -->
   <footer>
