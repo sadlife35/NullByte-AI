@@ -2050,6 +2050,60 @@ def generate_value(field_schema, edge_condition=None):
     default_pii_strategy = st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")
     current_pii_strategy = get_field_pii_strategy(field_schema, default_pii_strategy)
 
+    # --- NEW: Check for special Faker direct calls and patterns based on flags in field_schema ---
+    # These flags would have been populated if field_schema came from CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP
+    # or inferred during the renaming process.
+    # Note: This is a representative subset. For full functionality, all relevant 'is_faker_...'
+    # and 'is_..._pattern' flags from CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP should be handled here.
+
+    if field_schema.get("is_faker_city"): return fake.city()
+    if field_schema.get("is_faker_state"): return fake.state()
+    if field_schema.get("is_faker_country"): return fake.country()
+    if field_schema.get("is_faker_postcode"): return fake.postcode()
+    if field_schema.get("is_faker_currency_code"): return fake.currency_code()
+    if field_schema.get("is_faker_job"): return fake.job()
+    if field_schema.get("is_faker_company_with_suffix_list") and field_schema.get("suffix_from_list"):
+        return f"{fake.company()} {random.choice(field_schema['suffix_from_list'])}"
+    if field_schema.get("is_faker_company"): # Must be after more specific company checks
+        prefix = field_schema.get('prefix', '').rstrip()
+        suffix = field_schema.get('suffix', '').lstrip()
+        company_name = fake.company()
+        # Construct name with prefix/suffix carefully
+        parts = []
+        if prefix: parts.append(prefix)
+        parts.append(company_name)
+        if suffix: parts.append(suffix)
+        return " ".join(parts)
+    if field_schema.get("is_faker_url"): return fake.url()
+    if field_schema.get("is_faker_ipv4"): return fake.ipv4()
+    if field_schema.get("is_faker_mac_address"): return fake.mac_address()
+    if field_schema.get("is_faker_user_name"): return fake.user_name()
+    if field_schema.get("is_faker_latitude"): return fake.latitude()
+    if field_schema.get("is_faker_longitude"): return fake.longitude()
+    if field_schema.get("is_faker_color_name"): return fake.color_name()
+    if field_schema.get("is_faker_credit_card_number"): return fake.credit_card_number()
+    if field_schema.get("is_faker_file_name"):
+        ext_list = field_schema.get("constraint") # Assuming constraint might hold extensions for file_name
+        extensions = ext_list.split(',') if ext_list else FILE_EXTENSIONS_LIST # Fallback to global
+        return fake.file_name(extension=random.choice(extensions))
+
+    # Pattern-based generators
+    if field_schema.get("is_generic_numeric_id"): return f"{field_schema.get('prefix', '')}{random.randint(1000, 9999)}{random.randint(1000, 9999)}"
+    if field_schema.get("is_generic_alphanum_id"):
+        length = field_schema.get("length", 8)
+        return f"{field_schema.get('prefix', '')}{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=length))}"
+    if field_schema.get("is_room_number_pattern"): return f"{random.randint(1, 20)}{random.choice(['A', 'B', 'C', 'D'])}"
+    if field_schema.get("is_version_number_pattern"): return f"{random.randint(0,5)}.{random.randint(0,20)}.{random.randint(0,100)}"
+    if field_schema.get("is_doi_pattern"): return f"10.{random.randint(1000, 9999)}/{''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=random.randint(5,10)))}"
+    if field_schema.get("is_tracking_number_pattern"): return f"{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=3))}{random.randint(100000000, 999999999)}{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=2))}"
+    if field_schema.get("is_flight_number_pattern"): return f"{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ', k=2))}{random.randint(100, 9999)}"
+    if field_schema.get("is_digit_sequence"): # e.g., constraint "digits:10-12"
+        min_len, max_len = 10, 12 # defaults
+        if field_schema.get('constraint', '').startswith('digits:'):
+            parts = field_schema['constraint'].split(':')[1].split('-')
+            min_len, max_len = int(parts[0]), int(parts[1])
+        return ''.join(random.choices('0123456789', k=random.randint(min_len, max_len)))
+
     # Special handling for name with prefix/suffix
     if field_type == "name":
         base_name = fake.name()
@@ -2060,15 +2114,15 @@ def generate_value(field_schema, edge_condition=None):
         prefix_options = field_schema.get("prefix_options")
         prefix = field_schema.get("prefix", "")
         if prefix_options and isinstance(prefix_options, list) and prefix_options:
-            prefix = random.choice(prefix_options)
-        
+            prefix = random.choice(prefix_options) # Choose one from options
+
         if prefix and not prefix.endswith(" "):
             prefix += " "
-            
+
         suffix = field_schema.get("suffix", "")
         if suffix and not suffix.startswith(" "):
             suffix = " " + suffix
-        
+
         val = f"{prefix}{base_name}{suffix}".strip()
         return _apply_pii_strategy_to_value(val, "name", current_pii_strategy)
     elif field_type == "date" and constraint == "datetime": # Special handling for datetime
@@ -2078,7 +2132,6 @@ def generate_value(field_schema, edge_condition=None):
     elif field_type == "date" and constraint == "datetime_utc": # Special handling for datetime with UTC
         dt_obj = fake.date_time_this_year(tzinfo=timezone.utc) # Use timezone.utc
         return dt_obj.isoformat() # ISO format includes timezone
-
 
     generator_func = VALUE_GENERATOR_FUNCTIONS.get(field_type)
     if generator_func:
@@ -2805,23 +2858,83 @@ def show_smart_schema_editor(synthetic_df=None, num_rows=10):
                 key=f"field_type_{st.session_state.active_table_name}_{i}"
             )
 
+        field_type = current_active_schema_fields[i]["type"]
         with cols[2]:
-            field_type = current_active_schema_fields[i]["type"]
-            placeholder = ""
-
             if field_type == "int" or field_type == "float":
-                placeholder = "e.g., 1-100 or 20000-500000"
-            elif field_type == "date":
-                placeholder = "e.g., 2023-01-01 - 2023-12-31"
-            elif field_type == "category":
-                placeholder = "e.g., Option A, Option B, Option C"
+                min_val_default, max_val_default = (1, 100) if field_type == "int" else (1.0, 1000.0)
+                parsed_min, parsed_max = min_val_default, max_val_default
+                current_constraint = field.get("constraint", "")
+                if current_constraint:
+                    match = re.match(r"^\s*(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)\s*$", current_constraint)
+                    if match:
+                        try:
+                            parsed_min_str, parsed_max_str = match.groups()
+                            if field_type == "int":
+                                parsed_min = int(float(parsed_min_str))
+                                parsed_max = int(float(parsed_max_str))
+                            else: # float
+                                parsed_min = float(parsed_min_str)
+                                parsed_max = float(parsed_max_str)
+                            if parsed_min > parsed_max:
+                                parsed_min, parsed_max = min_val_default, max_val_default
+                                st.warning(f"Invalid range in constraint '{current_constraint}' for '{field['name']}'. Reverted to default.")
+                        except ValueError:
+                            parsed_min, parsed_max = min_val_default, max_val_default
+                            st.warning(f"Could not parse constraint '{current_constraint}' for '{field['name']}'. Reverted to default.")
 
-            current_active_schema_fields[i]["constraint"] = cols[2].text_input(
-                f"Constraints",
-                value=field["constraint"],
-                placeholder=placeholder,
-                key=f"field_constraint_{st.session_state.active_table_name}_{i}"
-            )
+                constraint_sub_cols = st.columns(2)
+                num_input_step = 1 if field_type == "int" else 0.01
+                num_input_format = "%d" if field_type == "int" else "%.2f"
+
+                min_val_ui = constraint_sub_cols[0].number_input(
+                    "Min", value=parsed_min, key=f"field_constraint_min_{st.session_state.active_table_name}_{i}",
+                    step=num_input_step, format=num_input_format
+                )
+                max_val_ui = constraint_sub_cols[1].number_input(
+                    "Max", value=parsed_max, key=f"field_constraint_max_{st.session_state.active_table_name}_{i}",
+                    step=num_input_step, format=num_input_format
+                )
+
+                if field_type == "int":
+                    min_val_ui = int(min_val_ui)
+                    max_val_ui = int(max_val_ui)
+
+                if min_val_ui > max_val_ui:
+                    st.error(f"Min value ({min_val_ui}) cannot be greater than Max value ({max_val_ui}) for field '{field['name']}'. Constraint not updated to this invalid range.")
+                else:
+                    current_active_schema_fields[i]["constraint"] = f"{min_val_ui}-{max_val_ui}"
+
+            elif field_type == "date":
+                start_date_default = datetime.now().date() - timedelta(days=365)
+                end_date_default = datetime.now().date()
+                parsed_start_date, parsed_end_date = start_date_default, end_date_default
+                current_constraint = field.get("constraint", "")
+                if current_constraint:
+                    match = re.match(r"^\s*(\d{4}-\d{2}-\d{2})\s*-\s*(\d{4}-\d{2}-\d{2})\s*$", current_constraint)
+                    if match:
+                        try:
+                            start_str, end_str = match.groups()
+                            parsed_start_date = datetime.strptime(start_str, "%Y-%m-%d").date()
+                            parsed_end_date = datetime.strptime(end_str, "%Y-%m-%d").date()
+                            if parsed_start_date > parsed_end_date:
+                                parsed_start_date, parsed_end_date = start_date_default, end_date_default
+                                st.warning(f"Invalid date range in constraint '{current_constraint}' for '{field['name']}'. Reverted to default.")
+                        except ValueError:
+                            parsed_start_date, parsed_end_date = start_date_default, end_date_default
+                            st.warning(f"Could not parse date constraint '{current_constraint}' for '{field['name']}'. Reverted to default.")
+                
+                constraint_sub_cols = st.columns(2)
+                start_date_ui = constraint_sub_cols[0].date_input("Start Date", value=parsed_start_date, key=f"field_constraint_start_{st.session_state.active_table_name}_{i}")
+                end_date_ui = constraint_sub_cols[1].date_input("End Date", value=parsed_end_date, key=f"field_constraint_end_{st.session_state.active_table_name}_{i}")
+
+                if start_date_ui > end_date_ui:
+                    st.error(f"Start date ({start_date_ui}) cannot be after End date ({end_date_ui}) for field '{field['name']}'. Constraint not updated to this invalid range.")
+                else:
+                    current_active_schema_fields[i]["constraint"] = f"{start_date_ui.strftime('%Y-%m-%d')} - {end_date_ui.strftime('%Y-%m-%d')}"
+            elif field_type == "category":
+                current_active_schema_fields[i]["constraint"] = st.text_input(f"Categories (comma-sep)", value=field.get("constraint", ""), placeholder="e.g., Option A, Option B", key=f"field_constraint_cat_{st.session_state.active_table_name}_{i}")
+            else: # Default text input for other types like string, email, phone etc. where constraints are less structured or not typically ranges
+                current_active_schema_fields[i]["constraint"] = st.text_input(f"Constraint/Format", value=field.get("constraint", ""), placeholder="Optional constraint", key=f"field_constraint_other_{st.session_state.active_table_name}_{i}")
 
         if is_sensitive_field:
             with cols[3]:
@@ -3405,27 +3518,80 @@ with tab1:
                 
                 if valid_rename and actual_rename_map: # Proceed only if valid and there are changes
                     # Update DataFrame
-                    df_copy = st.session_state.prompt_generated_df.copy()
-                    df_copy.rename(columns=actual_rename_map, inplace=True)
-                    st.session_state.prompt_generated_df = df_copy
+                    df_to_update = st.session_state.prompt_generated_df.copy()
+                    
+                    # --- NEW: Intelligent Data Re-generation based on new column name ---
+                    updated_schema_fields_for_tab1 = []
+                    original_df_columns_before_rename = list(st.session_state.prompt_generated_df.columns) # For mapping to schema
 
-                    # Update inferred schema field names
-                    if st.session_state.inferred_schema_from_prompt and \
-                       len(st.session_state.inferred_schema_from_prompt) == len(original_column_names_list):
-                        
-                        updated_schema_fields = []
-                        for i, field_schema in enumerate(st.session_state.inferred_schema_from_prompt):
-                            original_col_name_for_schema = original_column_names_list[i]
-                            new_name_for_schema_field = actual_rename_map.get(original_col_name_for_schema, original_col_name_for_schema)
+                    # First, apply the structural rename to the DataFrame
+                    df_to_update.rename(columns=actual_rename_map, inplace=True)
+
+                    if st.session_state.inferred_schema_from_prompt and len(st.session_state.inferred_schema_from_prompt) == len(original_df_columns_before_rename):
+                        for i, original_col_name_for_schema_lookup in enumerate(original_df_columns_before_rename):
+                            current_field_schema_dict = st.session_state.inferred_schema_from_prompt[i].copy() # Work on a copy
                             
-                            updated_schema_fields.append({
-                                **field_schema,
-                                "name": new_name_for_schema_field
-                            })
-                        st.session_state.inferred_schema_from_prompt = updated_schema_fields
-                        st.success("Column names and corresponding schema updated successfully!")
+                            new_col_name_for_data = actual_rename_map.get(original_col_name_for_schema_lookup, original_col_name_for_schema_lookup)
+                            
+                            # If the name actually changed, re-infer schema and re-generate data
+                            if new_col_name_for_data != original_col_name_for_schema_lookup:
+                                st.write(f"Re-evaluating column: '{original_col_name_for_schema_lookup}' renamed to '{new_col_name_for_data}'") # Debug
+                                
+                                # 1. Infer schema for the new_col_name_for_data
+                                effective_field_schema_for_regen = {"name": new_col_name_for_data, "type": "string", "constraint": "", "pii_handling": st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")}
+                                
+                                new_name_lower = new_col_name_for_data.lower()
+                                new_canonical_match = None
+                                sorted_synonyms_for_regen = sorted(FIELD_SYNONYM_TO_CANONICAL_MAP.keys(), key=len, reverse=True)
+                                for syn in sorted_synonyms_for_regen: # Find best canonical match
+                                    if syn == new_name_lower:
+                                        if FIELD_SYNONYM_TO_CANONICAL_MAP[syn] in CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP:
+                                            new_canonical_match = FIELD_SYNONYM_TO_CANONICAL_MAP[syn]; break
+                                if not new_canonical_match:
+                                    for syn in sorted_synonyms_for_regen:
+                                        if syn in new_name_lower:
+                                            if FIELD_SYNONYM_TO_CANONICAL_MAP[syn] in CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP:
+                                                new_canonical_match = FIELD_SYNONYM_TO_CANONICAL_MAP[syn]; break
+                                
+                                if new_canonical_match:
+                                    canonical_details = CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP[new_canonical_match]
+                                    effective_field_schema_for_regen.update(canonical_details) # Add all flags and details
+                                    effective_field_schema_for_regen["type"] = canonical_details.get("type", "string") # Ensure type is set
+                                    effective_field_schema_for_regen["constraint"] = canonical_details.get("constraint", "") # Ensure constraint is set
+                                else: # Fallback to basic keyword inference for novel names
+                                    if any(kw in new_name_lower for kw in ["date", "time", "timestamp", "dob", "joining"]): effective_field_schema_for_regen["type"] = "date"
+                                    elif any(kw in new_name_lower for kw in ["id", "count", "age", "quantity", "salary", "year", "number", "level"]):
+                                        effective_field_schema_for_regen["type"] = "int"
+                                        if "age" in new_name_lower: effective_field_schema_for_regen["constraint"] = "18-80"
+                                        else: effective_field_schema_for_regen["constraint"] = "0-1000"
+                                    elif any(kw in new_name_lower for kw in ["rate", "percent", "ratio", "score", "price", "amount", "value", "balance"]):
+                                        effective_field_schema_for_regen["type"] = "float"; effective_field_schema_for_regen["constraint"] = "0.0-100.0"
+                                    elif "email" in new_name_lower: effective_field_schema_for_regen["type"] = "email"
+                                    elif "phone" in new_name_lower: effective_field_schema_for_regen["type"] = "phone"
+                                    elif any(kw in new_name_lower for kw in ["address", "location", "city", "state", "country", "pincode", "zipcode"]): effective_field_schema_for_regen["type"] = "address"
+                                    elif "name" in new_name_lower and not any(kw in new_name_lower for kw in ["user", "company", "product", "brand", "model", "sensor", "item", "file", "column", "field"]): effective_field_schema_for_regen["type"] = "name"
+                                
+                                # Ensure the name in the schema is the new name for generation
+                                effective_field_schema_for_regen["name"] = new_col_name_for_data
+
+                                # 2. Re-generate data for this column in df_to_update
+                                num_rows_for_regen = len(df_to_update)
+                                df_to_update[new_col_name_for_data] = [generate_value(effective_field_schema_for_regen.copy()) for _ in range(num_rows_for_regen)] # Pass a copy
+                                st.write(f"Data for '{new_col_name_for_data}' re-generated with type '{effective_field_schema_for_regen['type']}' and constraint '{effective_field_schema_for_regen['constraint']}'.") # Debug
+                                
+                                # Update the schema list item
+                                current_field_schema_dict.update(effective_field_schema_for_regen)
+                            else: # Name didn't change, just ensure the name in schema dict is current
+                                current_field_schema_dict["name"] = new_col_name_for_data
+                            
+                            updated_schema_fields_for_tab1.append(current_field_schema_dict)
+                        
+                        st.session_state.prompt_generated_df = df_to_update
+                        st.session_state.inferred_schema_from_prompt = updated_schema_fields_for_tab1
+                        st.success("Column names updated, relevant data re-generated, and schema updated!")
                     else:
-                        st.warning("DataFrame column names updated, but could not update schema field names due to a mismatch or missing schema. The original schema structure (with old names) will be sent to the editor if you proceed.")
+                        st.session_state.prompt_generated_df = df_to_update # Update DF even if schema couldn't be
+                        st.warning("DataFrame column names updated and data re-generated. Could not update schema field names due to a mismatch or missing schema. The original schema structure (with old names) will be sent to the editor if you proceed.")
                     st.rerun()
                 elif valid_rename and not actual_rename_map:
                     st.info("No column names were changed.")
