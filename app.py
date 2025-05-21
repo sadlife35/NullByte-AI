@@ -458,7 +458,7 @@ def _generate_int_value(constraint, field_name, pii_strategy, edge_condition=Non
         else:
             st.warning(f"Malformed INT constraint '{constraint}' for field '{field_name}'. Using default range {min_default_initial}-{max_default_initial}.")
     
-    # min_default, max_default now hold either parsed values or initial defaults
+    # min_default, max_default now hold either parsed values or initial defaults for the constraint
     
     min_target, max_target = min_default, max_default
 
@@ -490,7 +490,29 @@ def _generate_int_value(constraint, field_name, pii_strategy, edge_condition=Non
             if "age" in field_name.lower() or "salary" in field_name.lower(): min_target = max(0, min_target)
             if min_target > max_target: return random.randint(0,100) # Absolute fallback
 
-    return random.randint(min_target, max_target)
+    generated_value = random.randint(min_target, max_target)
+
+    # --- Conceptual Differential Privacy (Laplace Mechanism) ---
+    if (st.session_state.get('advanced_lab_selection') == "🛡️ Differential Privacy" and
+        st.session_state.get('dp_mechanism_numeric') == "Laplace Mechanism" and
+        st.session_state.get('dp_epsilon', 0) > 0):
+
+        epsilon = st.session_state.dp_epsilon
+        # Sensitivity: For direct perturbation of a value within a range [min, max],
+        # sensitivity can be considered max - min.
+        # If min_target == max_target, sensitivity is 0, no noise added.
+        sensitivity = float(max_target - min_target)
+
+        if sensitivity > 0: # Only add noise if there's a range
+            noise = np.random.laplace(0, sensitivity / epsilon)
+            noisy_value = generated_value + noise
+            noisy_value_int = int(round(noisy_value))
+            # Clip to original target range (Note: simple clipping can affect formal DP guarantees)
+            generated_value = max(min_target, min(noisy_value_int, max_target))
+            # st.sidebar.caption(f"DP Applied to {field_name}: val={generated_value}, noise={noise:.2f}, sens={sensitivity}, eps={epsilon}") # For debugging
+
+    return generated_value
+
 
 def _generate_float_value(constraint, field_name, pii_strategy, edge_condition=None):
     min_default, max_default = 1.0, 1000.0
@@ -514,7 +536,7 @@ def _generate_float_value(constraint, field_name, pii_strategy, edge_condition=N
         else:
             st.warning(f"Malformed FLOAT constraint '{constraint}' for field '{field_name}'. Using default range {min_default_initial}-{max_default_initial}.")
 
-    # min_default, max_default now hold either parsed values or initial defaults
+    # min_default, max_default now hold either parsed values or initial defaults for the constraint
     
     min_target, max_target = min_default, max_default
 
@@ -544,7 +566,28 @@ def _generate_float_value(constraint, field_name, pii_strategy, edge_condition=N
             if "age" in field_name.lower() or "salary" in field_name.lower() or "price" in field_name.lower(): min_target = max(0.0, min_target)
             if min_target > max_target: return round(random.uniform(0.0,100.0), 2)
 
-    return round(random.uniform(min_target, max_target), 2)
+    generated_value = round(random.uniform(min_target, max_target), 2)
+
+    # --- Conceptual Differential Privacy (Laplace Mechanism) ---
+    if (st.session_state.get('advanced_lab_selection') == "🛡️ Differential Privacy" and
+        st.session_state.get('dp_mechanism_numeric') == "Laplace Mechanism" and
+        st.session_state.get('dp_epsilon', 0) > 0):
+
+        epsilon = st.session_state.dp_epsilon
+        # Sensitivity: For direct perturbation of a value within a range [min, max],
+        # sensitivity can be considered max - min.
+        sensitivity = float(max_target - min_target)
+
+        if sensitivity > 0: # Only add noise if there's a range
+            noise = np.random.laplace(0, sensitivity / epsilon)
+            noisy_value = generated_value + noise
+            # Clip to original target range (Note: simple clipping can affect formal DP guarantees)
+            # Ensure the clipped value still respects the float nature (e.g. precision)
+            generated_value = round(max(min_target, min(noisy_value, max_target)), 2)
+            # st.sidebar.caption(f"DP Applied to {field_name}: val={generated_value}, noise={noise:.2f}, sens={sensitivity}, eps={epsilon}") # For debugging
+
+    return generated_value
+
 
 def _generate_date_value(constraint, field_name, pii_strategy, edge_condition=None):
     start_default = datetime.now() - timedelta(days=365)
@@ -846,6 +889,7 @@ CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP = {
     "ip_address": {"type": "string", "constraint": "", "is_faker_ipv4": True, "display_name": "IP Address"},
     "mac_address": {"type": "string", "constraint": "", "is_faker_mac_address": True, "display_name": "MAC Address"},
     "version_number": {"type": "string", "constraint": "", "is_version_number_pattern": True, "display_name": "Version"},
+    "blood_pressure_reading": {"type": "string", "constraint": "", "is_blood_pressure_pattern": True, "display_name": "Blood Pressure"},
     "boolean_flag": {"type": "category", "constraint": random.choice(BOOLEAN_REPRESENTATIONS_LIST), "display_name": "Flag"},
     "timestamp_detailed": {"type": "date", "constraint": "datetime_utc", "display_name": "Timestamp (UTC)"}, # Special constraint for datetime with UTC
     "file_name": {"type": "string", "constraint": "", "is_faker_file_name": True, "display_name": "File Name"},
@@ -1043,12 +1087,12 @@ CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP = {
 DOMAIN_PROMPT_TO_SCHEMA_MAP = {
     "medical data": [
         "patient_id", "patient_name", "age", "gender", "admission_date",
-        "discharge_date", "diagnosis", "doctor_name", "hospital_name",
+        "discharge_date", "diagnosis", "doctor_name", "hospital_name", "blood_pressure_reading",
         "blood_type", "medication", "phone", "email"
     ],
     "hospital data": [
         "patient_id", "patient_name", "age", "gender", "admission_date",
-        "discharge_date", "diagnosis", "doctor_name", "hospital_name",
+        "discharge_date", "diagnosis", "doctor_name", "hospital_name", "blood_pressure_reading",
         "room_number", "insurance_provider", "blood_type", "medication", "phone", "email"
     ],
     "healthcare data": [
@@ -1300,7 +1344,7 @@ FIELD_SYNONYM_TO_CANONICAL_MAP = {
     # Hospital
     "patient id": "patient_id", "patient number": "patient_id", "medical record number": "patient_id", "mrn": "patient_id",
     "patient name": "patient_name",
-    "doctor name": "doctor_name", "physician name": "doctor_name",
+    "doctor name": "doctor_name", "physician name": "doctor_name", "blood pressure": "blood_pressure_reading",
     "hospital name": "hospital_name", "clinic name": "hospital_name",
     "medical condition": "diagnosis", # 'diagnosis' itself is a key
     "admission date": "admission_date", "date of admission": "admission_date",
@@ -1916,6 +1960,20 @@ def generate_explainability_pdf(generation_context_info, generated_dfs_info):
     # Add more details here if you implement more sophisticated logging
     pdf.ln(3)
 
+    # --- NEW: Differential Privacy Section (if applicable) ---
+    if generation_context_info.get('dp_applied', False): # Add a flag to context if DP was used
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, "3.5. Differential Privacy Parameters (Conceptual)", 0, 1)
+        pdf.set_font("Arial", size=10)
+        pdf.multi_cell(0, 5, f"Epsilon (ε) Used: {generation_context_info.get('dp_epsilon', 'N/A')}")
+        pdf.multi_cell(0, 5, f"Numerical Data Mechanism: {generation_context_info.get('dp_mechanism_numeric', 'N/A')}")
+        pdf.multi_cell(0, 5, f"Categorical Data Mechanism: {generation_context_info.get('dp_mechanism_categorical', 'N/A')}")
+        pdf.multi_cell(0, 5, "Note: Applying Differential Privacy involves a trade-off. Lower epsilon values provide stronger privacy guarantees but may reduce the statistical utility of the synthetic data. The reported parameters are based on user selection for conceptual application.")
+        pdf.ln(3)
+
+
+
+
     # --- Output Summary ---
     pdf.set_font("Arial", "B", 12)
     pdf.cell(0, 10, "4. Output Summary", 0, 1)
@@ -2057,6 +2115,10 @@ def generate_value(field_schema, edge_condition=None):
     # and 'is_..._pattern' flags from CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP should be handled here.
 
     if field_schema.get("is_faker_city"): return fake.city()
+    if field_schema.get("is_blood_pressure_pattern"):
+        systolic = random.randint(90, 170) # Example typical ranges
+        diastolic = random.randint(60, 110)
+        return f"{systolic}/{diastolic} mmHg"
     if field_schema.get("is_faker_state"): return fake.state()
     if field_schema.get("is_faker_country"): return fake.country()
     if field_schema.get("is_faker_postcode"): return fake.postcode()

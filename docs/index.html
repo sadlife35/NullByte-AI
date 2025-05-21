@@ -3,11 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <!-- Add your favicon here -->
-          <!-- <link rel="icon" type="image/png" href="path/to/your-favicon.png"> -->
-          <!-- Or for an .ico file -->
-          <!-- <link rel="icon" href="path/to/your-favicon.ico" type="image/x-icon"> -->
+  <meta name="description" content="Nullbyte AI: AI-driven synthetic data generation for developers and businesses, focusing on privacy, ethics, and India-centric solutions.">
+  <!-- Add your favicon here - replace with your actual favicon path -->
+  <link rel="icon" type="image/png" href="images/favicon.png"> <!-- Example path -->
   <title>Nullbyte AI</title>
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://your-domain.com/"> <!-- Replace with your actual URL -->
+  <meta property="og:title" content="Nullbyte AI - The Future of AI-Driven Development">
+  <meta property="og:description" content="Empowering developers with ethical, intelligent, and accessible synthetic data solutions.">
+  <meta property="og:image" content="https://your-domain.com/images/og-image.png"> <!-- Replace with a compelling image URL -->
 
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
@@ -183,6 +189,186 @@
     #how-it-works.info-card ul { /* Target the list within "How It Works" */
       flex-grow: 1; /* Allow the list to take up remaining vertical space */
     }
+
+    .visual-placeholder {
+      background: rgba(255, 255, 255, 0.03); /* Subtle background to lift it slightly */
+      border: 1px solid rgba(255, 255, 255, 0.08); /* Border consistent with card style */
+      border-radius: 12px; /* Consistent with card radius */
+      padding: 0.5rem; /* Small padding around the visual content */
+      margin-bottom: 1.5rem; /* Maintain existing bottom margin */
+      overflow: hidden; /* Ensure content corners are clipped if they have their own radius */
+      display: flex; /* For centering the 3D content */
+      align-items: center;
+      justify-content: center;
+      min-height: 280px; /* Give it some space for the 3D effect */
+    }
+
+    .perspective-wrapper {
+      perspective: 1000px; /* Adjusted perspective for a bit more clarity */
+      width: 70%; /* Adjusted width of the 3D element */
+      height: 170px; /* Adjusted height of the 3D element */
+      position: relative;
+      transform-style: preserve-3d; /* Crucial for children to be in 3D space */
+    }
+
+    @keyframes dataStream { /* For the ::before pseudo-element - more pronounced flow */
+      0% { background-position: 0% 0%; }
+      100% { background-position: -200% -200%; } /* Increased movement for visibility */
+    }
+
+
+    /* Original pulseGlow for outer layers */
+    @keyframes pulseGlow {
+      0%, 100% {
+        box-shadow: 0 0 5px rgba(100, 180, 255, 0.2), 0 0 10px rgba(100, 180, 255, 0.1);
+        border-color: rgba(100, 180, 255, 0.3);
+      }
+      50% {
+        box-shadow: 0 0 15px rgba(120, 200, 255, 0.4), 0 0 25px rgba(120, 200, 255, 0.2);
+        border-color: rgba(120, 200, 255, 0.5);
+      }
+    }
+
+    /* More intense pulseGlow for the middle (processing) layer */
+    @keyframes pulseGlowIntense {
+      0%, 100% {
+        box-shadow: 0 0 10px rgba(120, 200, 255, 0.3), 0 0 18px rgba(120, 200, 255, 0.2);
+        border-color: rgba(120, 200, 255, 0.4);
+      }
+      50% {
+        box-shadow: 0 0 25px rgba(150, 220, 255, 0.6), 0 0 35px rgba(150, 220, 255, 0.4);
+        border-color: rgba(150, 220, 255, 0.7);
+      }
+    }
+
+    .data-layer {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 8px;
+      /* Default background, will be overridden by specific layers */
+      background: linear-gradient(145deg, 
+        rgba(30, 100, 220, 0.25) 0%, 
+        rgba(80, 150, 255, 0.15) 30%, 
+        rgba(50, 120, 240, 0.2) 70%, 
+        rgba(100, 180, 255, 0.1) 100%
+      );
+      border: 1px solid rgba(100, 180, 255, 0.3);
+      box-shadow: 0 2px 10px rgba(50, 150, 255, 0.2);
+      transform-style: preserve-3d; /* If layers themselves had children in 3D */
+      transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.4s ease, border-color 0.4s ease;
+      animation: pulseGlow 3s infinite ease-in-out; /* Add pulsing animation */
+    }
+
+    .data-layer .layer-label {
+      position: absolute;
+      bottom: 10px; /* Position at the bottom of the layer */
+      left: 50%;
+      transform: translateX(-50%) translateZ(1px); /* Center it and bring slightly forward if needed */
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-align: center;
+      width: 90%; /* Ensure it doesn't overflow too much */
+      pointer-events: none; /* So it doesn't interfere with hover on the layer itself */
+    }
+
+    .data-layer::before { /* Animated data stream effect */
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      border-radius: 8px; /* Match parent's border-radius */
+      background: linear-gradient( /* More defined diagonal streaming lines */
+        -45deg, 
+        transparent 40%, 
+        rgba(255, 255, 255, 0.05) 48%, 
+        rgba(255, 255, 255, 0.1) 50%, 
+        rgba(255, 255, 255, 0.05) 52%, 
+        transparent 60%
+      ),
+      linear-gradient( /* Fainter secondary set of lines for more texture */
+        45deg,
+        transparent 45%,
+        rgba(255,255,255,0.02) 49%,
+        rgba(255,255,255,0.04) 50%,
+        rgba(255,255,255,0.02) 51%,
+        transparent 55%
+      );
+      background-size: 100px 100px, 70px 70px; /* Control density of lines */
+      opacity: 0.8; /* Slightly reduced opacity to not overwhelm layer color */
+      pointer-events: none; /* Ensure it doesn't interfere with hover on the main layer */
+      animation: dataStream 3.5s linear infinite; /* Apply the data stream animation, slightly faster */
+    }
+    .data-layer.layer-1 { /* Backmost layer - "Raw/Diverse Input" */
+      transform: rotateX(55deg) translateY(-20px) translateZ(-50px); /* Adjusted transform */
+      background: linear-gradient(135deg, /* Gradient suggesting varied, unprocessed content */
+        rgba(80, 100, 130, 0.28) 0%,  /* Slightly muted start */
+        rgba(60, 80, 110, 0.38) 25%,  /* Darker, denser patch */
+        rgba(110, 130, 160, 0.22) 50%, /* Lighter, less defined patch */
+        rgba(70, 90, 120, 0.33) 75%,   /* Another denser patch */
+        rgba(130, 150, 180, 0.25) 100% /* Muted end */
+      );
+      animation-delay: -1s; /* Offset animation for variety */
+      /* z-index: 1; Ensure back layer is behind others if needed, though translateZ handles this */
+    }
+    .data-layer.layer-2 { /* Middle layer - "AI Processing Core" - more active */
+      transform: rotateX(55deg) translateY(0px) translateZ(0px); /* Adjusted transform */
+      background: linear-gradient(145deg, 
+        rgba(60, 160, 255, 0.4) 0%,  /* Slightly brighter base for processing */
+        rgba(110, 190, 255, 0.3) 30%, 
+        rgba(90, 180, 255, 0.35) 70%, 
+        rgba(130, 210, 255, 0.25) 100%
+      ); /* Brighter, more active gradient for the central layer */
+      animation: pulseGlowIntense 2.5s infinite ease-in-out; /* Use the more intense glow, slightly faster */
+      /* z-index: 2; */
+    }
+    .data-layer.layer-3 { /* Frontmost layer - "Clean Synthesized Output" */
+      transform: rotateX(55deg) translateY(20px) translateZ(50px); /* Adjusted transform */
+      background: linear-gradient(145deg, /* Cleaner, brighter gradient for refined output */
+        rgba(80, 180, 255, 0.5) 0%,  /* Brighter, clearer blue */
+        rgba(120, 200, 255, 0.4) 40%, /* Smooth transition to a lighter shade */
+        rgba(100, 190, 255, 0.45) 70%,/* Maintaining clarity */
+        rgba(150, 220, 255, 0.35) 100% /* Lighter, almost ethereal end */
+      );
+      animation-delay: -0.5s; /* Offset animation */
+      /* z-index: 3; */
+    }
+
+    /* Customize data stream appearance per layer for more meaning */
+    .data-layer.layer-1::before {
+      animation-duration: 5s; /* Slower stream for raw input */
+      opacity: 0.65; /* Slightly more subtle */
+    }
+    .data-layer.layer-2::before {
+      animation-duration: 2.5s; /* Faster stream for active AI core processing */
+      opacity: 0.9; /* More prominent */
+    }
+    .data-layer.layer-3::before {
+      animation-duration: 4s; /* Smooth, steady stream for refined output */
+      background: linear-gradient( /* Cleaner, single set of streaming lines */
+        -45deg,
+        transparent 42%, rgba(255, 255, 255, 0.08) 49%,
+        rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.08) 51%,
+        transparent 58% );
+      background-size: 120px 120px; /* Wider, smoother lines */
+      opacity: 0.85;
+    }
+
+    .perspective-wrapper:hover .data-layer { /* Subtle shift on hover */
+      /* Base hover transform - individual layers will override parts of this */
+      box-shadow: 0 5px 25px rgba(100, 180, 255, 0.3), 0 0 15px rgba(150, 220, 255, 0.2);
+      animation-play-state: paused; /* Pause pulsing on hover to focus on transform */
+    }
+    /* Specific hover transforms to make them fan out a bit more */
+    .perspective-wrapper:hover .data-layer.layer-1 {
+      transform: rotateX(50deg) translateY(-15px) translateZ(-35px) scale(1.05);
+    }
+    .perspective-wrapper:hover .data-layer.layer-2 {
+      transform: rotateX(50deg) translateY(0px) translateZ(0px) scale(1.07); /* Middle one slightly more prominent */
+    }
+    .perspective-wrapper:hover .data-layer.layer-3 {
+      transform: rotateX(50deg) translateY(15px) translateZ(35px) scale(1.05);
+    }
     .pricing-card { /* Basic styling for pricing cards */
       border: 1px solid rgba(255, 255, 255, 0.2);
       padding: 2rem;
@@ -216,11 +402,6 @@
       margin-top: 0.75rem;
       color: #cccccc;
       line-height: 1.6;
-    }
-    .pricing-card { /* Basic styling for pricing cards */
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      padding: 2rem;
-      border-radius: 12px;
     }
     .info-column { /* New style for explicit columns */
       display: flex;
@@ -269,7 +450,7 @@
 
     <div class="buttons">
       <a href="https://nullbyteai.streamlit.app/" class="btn btn-try" target="_blank">Try Now</a>
-      <a href="https://discord.gg/yourcommunitylink" class="btn btn-try" target="_blank">Join Community</a> 
+      <a href="https://discord.gg/ACTUAL_DISCORD_LINK" class="btn btn-try" target="_blank">Join Community</a> <!-- TODO: Update Discord Link -->
     </div>
   </header>
 
@@ -321,14 +502,16 @@
       <div class="info-column">
         <div class="info-card" id="how-it-works">
           <h3>Streamlined Data Synthesis</h3>
-          <!-- Image/GIF Placeholder -->
-          <div style="text-align: center; margin-bottom: 1.5rem;">
-            <img src="https://images.pexels.com/photos/577585/pexels-photo-577585.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=600&h=350" 
-                 alt="Nullbyte AI in action - conceptual visual" 
-                 style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #333;">
+          <!-- CSS 3D Design Placeholder -->
+          <div class="visual-placeholder">
+            <div class="perspective-wrapper">
+              <div class="data-layer layer-1"><span class="layer-label">Raw Input Data</span></div>
+              <div class="data-layer layer-2"><span class="layer-label">AI Synthesis Core</span></div>
+              <div class="data-layer layer-3"><span class="layer-label">Refined Output</span></div>
+            </div>
             <!-- 
-              Replace the src above with your actual image/GIF URL. 
-              Consider a GIF showing a quick demo or a compelling screenshot.
+              This is a CSS-based 3D effect representing data layers.
+              For more complex 3D, consider embedding a 3D model (e.g., from Sketchfab) or using WebGL libraries like Three.js.
             -->
           </div>
           <ul>
@@ -399,17 +582,17 @@
       <div class="pricing-card feature-card"> <!-- Reusing .feature-card for base style -->
         <h3>Free Tier / Community</h3>
         <p style="margin-top: 1rem; color: #e0e0e0;">Access core generation features, limited usage, community support. Perfect for exploration and small projects.</p>
-        <a href="#" class="btn btn-try" style="margin-top: 2rem; display: inline-block;">Get Started Free</a>
+        <a href="https://nullbyteai.streamlit.app/" class="btn btn-try" style="margin-top: 2rem; display: inline-block;" target="_blank">Get Started Free</a>
       </div>
       <div class="pricing-card feature-card">
         <h3>Pro / Startup</h3>
         <p style="margin-top: 1rem; color: #e0e0e0;">Advanced features, higher limits, priority support, access to premium templates. Ideal for growing teams.</p>
-        <a href="#" class="btn btn-try" style="margin-top: 2rem; display: inline-block;">Learn More</a>
+        <a href="#contact" class="btn btn-try" style="margin-top: 2rem; display: inline-block;">Learn More</a> <!-- Or link to a specific page/mailto -->
       </div>
       <div class="pricing-card feature-card">
         <h3>Enterprise</h3>
         <p style="margin-top: 1rem; color: #e0e0e0;">Custom solutions, dedicated support, federated learning options, on-premise deployment. Tailored for large organizations.</p>
-        <a href="#" class="btn btn-try" style="margin-top: 2rem; display: inline-block;">Contact Sales</a>
+        <a href="mailto:sales@nullbyteai.com" class="btn btn-try" style="margin-top: 2rem; display: inline-block;">Contact Sales</a> <!-- Or link to a contact form -->
       </div>
     </div>
   </section>
