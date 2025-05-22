@@ -9,6 +9,7 @@ import random
 import openpyxl
 import re
 from scipy import stats
+import string # Import the string module
 from datetime import datetime
 from datetime import timedelta
 import zipfile # For downloading multiple tables as ZIP
@@ -410,31 +411,110 @@ def generate_upi():
     return f"{username}{domain}".lower()
 
 # --- Value Generation Helper Functions ---
-def _generate_string_value(constraint, field_name, pii_strategy, edge_condition=None):
+def _generate_string_value(constraint, field_name, pii_strategy, edge_condition=None, full_field_schema=None):
+    """
+    Generates a string value based on the field name and any hints in the schema.
+    Handles business-specific patterns like API paths, version numbers, etc.
+    """
+    field_lower = field_name.lower()
+    
+    # Handle edge conditions first
     if edge_condition and edge_condition.get('operator') == '==':
         return str(edge_condition['value'])
-
-    field_name_lower = field_name.lower()
-
-    # Specific types of real text
-    if any(kw in field_name_lower for kw in ["motto", "tagline", "slogan", "banner"]):
-        return fake.catch_phrase()
-    elif any(kw in field_name_lower for kw in ["title", "headline", "subject", "header", "caption", "label"]):
-        # Prefer catch_phrase for titles as bs() can be too long or sentence-like
-        return fake.catch_phrase()
-    elif any(kw in field_name_lower for kw in ["campaign name", "project name", "initiative name", "program name", "course name"]): # More specific "names"
-        return fake.bs().capitalize() # Business Slogans often fit well here
-
-    # More descriptive text using real words (e.g., multiple bs sentences)
-    elif any(kw in field_name_lower for kw in ["description", "comment", "review", "notes", "summary", "feedback", "message", "post", "text", "details", "content", "abstract", "body", "script", "reason", "justification", "explanation", "purpose", "instructions", "guidelines"]):
-        num_bs_sentences = random.randint(1, 2) # Generate 1 or 2 "business speak" sentences
-        return " ".join([fake.bs().capitalize() + "." for _ in range(num_bs_sentences)]).strip()
-    # Default for other strings: a short list of random real words, or a single bs sentence
+    
+    # Handle business-specific patterns
+    if full_field_schema and full_field_schema.get('_hint_api_path'):
+        # Generate realistic API endpoint paths
+        api_versions = ['v1', 'v2', 'v3']
+        api_resources = ['users', 'products', 'orders', 'customers', 'payments', 'inventory', 'analytics']
+        api_actions = ['get', 'create', 'update', 'delete', 'list', 'search', 'filter']
+        version = random.choice(api_versions)
+        resource = random.choice(api_resources)
+        action = random.choice(api_actions)
+        return f"/{version}/{resource}/{action}"
+    
+    elif full_field_schema and full_field_schema.get('_hint_version'):
+        # Generate semantic version numbers
+        major = random.randint(1, 5)
+        minor = random.randint(0, 9)
+        patch = random.randint(0, 9)
+        return f"{major}.{minor}.{patch}"
+    
+    elif "connection_string" in field_lower:
+        # Generate database connection strings
+        db_types = ['postgresql', 'mysql', 'mongodb', 'redis']
+        db_type = random.choice(db_types)
+        user = fake.user_name()
+        password = fake.password()
+        host = fake.hostname()
+        port = random.randint(1024, 65535)
+        db_name = fake.word()
+        return f"{db_type}://{user}:{password}@{host}:{port}/{db_name}"
+    
+    elif "sku" in field_lower:
+        # Generate product SKUs
+        prefix = "".join(random.choices(string.ascii_uppercase, k=3))
+        middle = "".join(random.choices(string.ascii_uppercase + string.digits, k=3))
+        suffix = "".join(random.choices(string.ascii_uppercase, k=2))
+        return f"{prefix}-{middle}-{suffix}"
+    
+    elif "campaign_id" in field_lower:
+        # Generate marketing campaign IDs
+        year = datetime.now().year
+        quarter = f"Q{(datetime.now().month-1)//3 + 1}"
+        campaign_type = random.choice(['EMAIL', 'SOCIAL', 'PPC', 'SEO'])
+        number = random.randint(1000, 9999)
+        return f"{campaign_type}-{year}-{quarter}-{number}"
+    
+    elif "job_title" in field_lower:
+        # Generate realistic job titles
+        levels = ['Junior', 'Senior', 'Lead', 'Principal', 'Staff', 'Chief']
+        roles = ['Software Engineer', 'Data Scientist', 'Product Manager', 'DevOps Engineer', 
+                'UX Designer', 'Business Analyst', 'Project Manager', 'Solutions Architect']
+        specialties = ['', 'Backend', 'Frontend', 'Full Stack', 'Cloud', 'Security', 'Mobile']
+        
+        level = random.choice(levels)
+        role = random.choice(roles)
+        specialty = random.choice(specialties)
+        
+        if specialty:
+            return f"{level} {specialty} {role}"
+        return f"{level} {role}"
+    
+    # Handle Faker-specific patterns
+    elif full_field_schema and full_field_schema.get('is_faker_url'):
+        return fake.url()
+    elif full_field_schema and full_field_schema.get('is_faker_ipv4'):
+        return fake.ipv4()
+    elif full_field_schema and full_field_schema.get('is_faker_color_name'):
+        return fake.color_name()
+    elif full_field_schema and full_field_schema.get('is_faker_job'):
+        return fake.job()
+    elif full_field_schema and full_field_schema.get('is_faker_company'):
+        return fake.company()
+    
+    # Handle inferred alphanumeric IDs
+    elif full_field_schema and full_field_schema.get('_is_inferred_alphanum_id'):
+        prefix = full_field_schema.get('_inferred_prefix', 'ID-')
+        length = full_field_schema.get('length', 8)
+        chars = string.ascii_uppercase + string.digits
+        return prefix + ''.join(random.choices(chars, k=length))
+    
+    # Default string generation
+    if constraint:
+        # If there's a constraint, try to use it
+        try:
+            return str(constraint)
+        except:
+            pass
+    
+    # Generate a random string based on the field name
+    if any(kw in field_lower for kw in ['name', 'title', 'description']):
+        return fake.sentence(nb_words=3)
+    elif any(kw in field_lower for kw in ['code', 'id', 'key']):
+        return fake.uuid4()
     else:
-        if random.random() < 0.5: # 50% chance for a few random words
-            return " ".join(fake.words(nb=random.randint(4, 8))).capitalize() + "."
-        else: # 50% chance for a business-speak sentence
-            return fake.bs().capitalize() + "."
+        return fake.word()
 
 def _generate_int_value(constraint, field_name, pii_strategy, edge_condition=None):
     min_default, max_default = 1, 1000
@@ -924,7 +1004,7 @@ CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP = {
     # Food Delivery Domain
     "restaurant_name": {"type": "string", "constraint": "", "is_faker_company": True, "suffix_from_list": RESTAURANT_TYPES_LIST, "display_name": "Restaurant Name"},
     "food_items": {"type": "category", "constraint": ",".join(FOOD_ITEMS_LIST), "display_name": "Food Items"}, # Could also be a multi-select or string for comma-separated items
-    "order_total": {"type": "float", "constraint": "100-2000", "display_name": "Order Total (INR)"},
+    "order_total": {"type": "int", "constraint": "100-2000", "display_name": "Order Total (INR)"},
     "delivery_agent_name": {"type": "name", "constraint": "", "display_name": "Delivery Agent Name"},
     "delivery_time_minutes": {"type": "int", "constraint": "15-75", "display_name": "Delivery Time (Minutes)"},
     "delivery_rating": {"type": "int", "constraint": "1-5", "display_name": "Delivery Rating"},
@@ -1082,6 +1162,136 @@ CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP = {
     # This is a crucial step for the refactor to work comprehensively.
 }
 
+# --- NEW: Field Schema Inference from Name ---
+def infer_field_schema_from_name(field_name_str, default_pii_strategy="realistic_fake"):
+    """
+    Infers a basic field schema (type, constraint, etc.) from a field name string.
+    """
+    # Default display name from the input string
+    display_name = field_name_str.replace("_", " ").title()
+    field_schema = {
+        "name": display_name,
+        "type": "string",  # Default type
+        "constraint": "",
+        "pii_handling": default_pii_strategy,
+        # Store a normalized version for internal use or as a fallback canonical key
+        "_original_canonical": field_name_str.lower().replace(" ", "_")
+    }
+    field_lower = field_name_str.lower()
+
+    # 1. Try to match to canonical schema first
+    normalized_field_name = field_lower.replace(" ", "_")
+    canonical_match = None
+
+    if normalized_field_name in CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP:
+        canonical_match = normalized_field_name
+    else:
+        # Sort synonyms by length (descending) to match longer, more specific synonyms first
+        sorted_synonyms = sorted(FIELD_SYNONYM_TO_CANONICAL_MAP.keys(), key=len, reverse=True)
+        for user_synonym in sorted_synonyms:
+            # Check for exact match of the synonym
+            if user_synonym == normalized_field_name: # More precise than 'in'
+                potential_canonical = FIELD_SYNONYM_TO_CANONICAL_MAP[user_synonym]
+                if potential_canonical in CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP:
+                    canonical_match = potential_canonical
+                    break
+            # Fallback to 'in' if no exact match, but be cautious as it can be too broad
+            # elif user_synonym in normalized_field_name:
+            #     # This part might need more refinement to avoid overly greedy matches
+            #     # For now, prioritize exact matches above
+            #     pass
+
+
+    if canonical_match:
+        details = CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP[canonical_match].copy()
+        field_schema.update(details)
+        field_schema["name"] = display_name # Ensure original name (title cased) is used for display
+        field_schema["_original_canonical"] = canonical_match # Store the matched canonical key
+        return field_schema
+
+    # 2. If no canonical match, apply general inference rules
+    if any(kw in field_lower for kw in ["date", "time", "timestamp", "dob", "joining", "day", "month", "year_of_birth", "birth_date"]): # "year" is too generic alone
+        field_schema["type"] = "date"
+        # More specific date constraints
+        if "dob" in field_lower or "birth_date" in field_lower or "year_of_birth" in field_lower :
+            start_def = datetime.now() - timedelta(days=365*70) # Up to 70 years ago
+            end_def = datetime.now() - timedelta(days=365*18)   # At least 18 years ago
+        elif "joining" in field_lower or "hire_date" in field_lower:
+            start_def = datetime.now() - timedelta(days=365*10) # Up to 10 years ago
+            end_def = datetime.now()
+        else: # Generic date
+            start_def = datetime.now() - timedelta(days=365)
+            end_def = datetime.now()
+        field_schema["constraint"] = f"{start_def.strftime('%Y-%m-%d')} - {end_def.strftime('%Y-%m-%d')}"
+    elif any(kw in field_lower for kw in ["id", "count", "age", "quantity", "salary", "year", "number", "level", "amount", "total", "seq", "num", "digit", "numeric", "integer", "score_value", "points"]):
+        field_schema["type"] = "int"
+        if "age" in field_lower: field_schema["constraint"] = "18-80"
+        elif "year" in field_lower and not "year_of_birth" in field_lower : field_schema["constraint"] = f"{datetime.now().year - 10}-{datetime.now().year}" # For general year fields
+        elif any(kw in field_lower for kw in ["salary", "amount", "total", "revenue", "income"]): field_schema["constraint"] = "1000-100000"
+        elif any(kw in field_lower for kw in ["quantity", "count", "stock", "inventory"]): field_schema["constraint"] = "1-100"
+        elif any(kw in field_lower for kw in ["level", "rank", "grade_numeric"]): field_schema["constraint"] = "1-10"
+        elif any(kw in field_lower for kw in ["score_value", "points"]): field_schema["constraint"] = "0-100"
+        else: field_schema["constraint"] = "0-1000"
+    elif any(kw in field_lower for kw in ["rate", "percent", "ratio", "score_decimal", "efficiency", "integrity", "price", "value", "balance", "temp", "humidity", "factor", "decimal", "float", "measurement", "latitude", "longitude", "coordinate"]):
+        field_schema["type"] = "float"
+        if any(kw in field_lower for kw in ["price", "value", "balance", "cost"]): field_schema["constraint"] = "0.0-1000.0"
+        elif any(kw in field_lower for kw in ["rate", "percent", "ratio", "factor", "coefficient"]): field_schema["constraint"] = "0.0-1.0" # Often proportions
+        elif "temp" in field_lower: field_schema["constraint"] = "-10.0-40.0"
+        elif "humidity" in field_lower: field_schema["constraint"] = "0.0-100.0"
+        elif any(kw in field_lower for kw in ["latitude"]): field_schema["constraint"] = "-90.0-90.0"
+        elif any(kw in field_lower for kw in ["longitude"]): field_schema["constraint"] = "-180.0-180.0"
+        else: field_schema["constraint"] = "0.0-100.0"
+    elif "email" in field_lower: field_schema["type"] = "email"
+    elif any(kw in field_lower for kw in ["phone", "mobile", "contact number"]): field_schema["type"] = "phone"
+    elif any(kw in field_lower for kw in ["address", "location", "city", "state", "country", "pincode", "zipcode", "street", "area", "place"]):
+        field_schema["type"] = "address" # Generic address type
+        if "city" in field_lower: field_schema["is_faker_city"] = True
+        elif "state" in field_lower: field_schema["is_faker_state"] = True
+        elif "country" in field_lower: field_schema["is_faker_country"] = True
+        elif any(kw in field_lower for kw in ["pincode", "zipcode"]): field_schema["is_faker_postcode"] = True
+    # More specific name checks to avoid overly broad matching
+    elif ("name" in field_lower and not any(kw in field_lower for kw in ["user_name", "company_name", "product_name", "brand_name", "model_name", "sensor_name", "item_name", "file_name", "column_name", "field_name", "campaign_name", "project_name", "program_name", "course_name", "animal_name", "login_name", "screen_name", "domain_name", "event_name", "team_name", "group_name", "font_name", "color_name", "style_name"])) \
+        or field_lower in ["person_name", "full_name", "customer_name", "employee_name", "student_name", "doctor_name", "author_name", "contact_name"]:
+        field_schema["type"] = "name"
+    elif "gender" in field_lower:
+        field_schema["type"] = "category"; field_schema["constraint"] = "Male,Female,Other,Prefer not to say"
+    elif "status" in field_lower:
+        field_schema["type"] = "category"; field_schema["constraint"] = "Active,Inactive,Pending,Completed,Cancelled,Open,Closed,Resolved,Shipped,Delivered"
+    elif any(kw in field_lower for kw in ["type", "category", "kind", "class", "group", "segment", "tier"]):
+        field_schema["type"] = "category"; field_schema["constraint"] = "Type A,Type B,Type C,Type D" # Generic categories
+    elif "flag" in field_lower or field_lower.startswith("is_") or field_lower.startswith("has_") or field_lower.endswith("_enabled") or field_lower.endswith("_available"):
+        field_schema["type"] = "category"; field_schema["constraint"] = random.choice(BOOLEAN_REPRESENTATIONS_LIST)
+    elif any(kw in field_lower for kw in ["url", "website", "link", "webpage", "site"]):
+        field_schema["type"] = "string"; field_schema["is_faker_url"] = True
+    elif "ip_address" in field_lower or field_lower == "ip":
+        field_schema["type"] = "string"; field_schema["is_faker_ipv4"] = True
+    elif any(kw in field_lower for kw in ["color", "colour"]):
+        field_schema["type"] = "string"; field_schema["is_faker_color_name"] = True
+    elif any(kw in field_lower for kw in ["job", "position", "role", "occupation", "designation"]):
+        field_schema["type"] = "string"; field_schema["is_faker_job"] = True
+    elif any(kw in field_lower for kw in ["company", "organization", "employer", "firm", "business", "vendor", "supplier", "client_company"]):
+        field_schema["type"] = "string"; field_schema["is_faker_company"] = True
+    elif "animal" in field_lower and "name" in field_lower: field_schema["type"] = "animal_name" # More specific
+    elif "car" in field_lower and any(kw in field_lower for kw in ["dream", "favorite", "model", "type"]): field_schema["type"] = "string"; field_schema["_hint_vehicle"] = True
+    elif "festival" in field_lower and any(kw in field_lower for kw in ["favorite", "preferred"]): field_schema["type"] = "string"; field_schema["_hint_event_name"] = True
+    elif "birthstone" in field_lower:
+        field_schema["type"] = "category"; field_schema["constraint"] = "Garnet,Amethyst,Aquamarine,Diamond,Emerald,Pearl,Ruby,Peridot,Sapphire,Opal,Topaz,Turquoise"
+    elif "zodiac_sign" == field_lower or ("zodiac" in field_lower and "sign" in field_lower):
+        field_schema["type"] = "category"; field_schema["constraint"] = "Aries,Taurus,Gemini,Cancer,Leo,Virgo,Libra,Scorpio,Sagittarius,Capricorn,Aquarius,Pisces"
+    elif "blood_group" == field_lower or ("blood" in field_lower and ("group" in field_lower or "type" in field_lower)):
+        field_schema["type"] = "category"; field_schema["constraint"] = ",".join(BLOOD_TYPES_LIST)
+    elif any(kw in field_lower for kw in ["favorite", "dream", "preference", "choice", "opinion", "hobby", "interest", "skill"]): # For general preference-like text
+        field_schema["type"] = "string"; field_schema["_hint_short_phrase"] = True
+    # Infer alphanumeric ID for novel fields that look like codes/keys but weren't caught by canonicals
+    elif field_schema["type"] == "string" and any(kw in field_lower for kw in ["code", "key", "token", "serial_no", "reference_id", "identifier_code", "tracking_id", "item_code", "product_code", "user_token", "api_key_value"]) and not any(kw in field_lower for kw in ["currency", "country_code", "zip_code", "area_code", "ifsc_code", "promo_code", "discount_code"]): # Avoid things that are already specific types
+        field_schema["_is_inferred_alphanum_id"] = True
+        # Try to make a somewhat meaningful prefix from the display name
+        prefix_candidate = "".join(filter(str.isalnum, display_name.replace(" ", "")))
+        field_schema["_inferred_prefix"] = prefix_candidate.upper()[:min(len(prefix_candidate), 4)] + "-" if prefix_candidate else "ID-"
+        field_schema["length"] = random.randint(6,12) # Default length for inferred IDs
+
+    return field_schema
+
 # --- NEW: Domain Prompt to Predefined Schema Mapping ---
 # Maps common domain phrases to a list of canonical field keys
 DOMAIN_PROMPT_TO_SCHEMA_MAP = {
@@ -1089,6 +1299,9 @@ DOMAIN_PROMPT_TO_SCHEMA_MAP = {
         "patient_id", "patient_name", "age", "gender", "admission_date",
         "discharge_date", "diagnosis", "doctor_name", "hospital_name", "blood_pressure_reading",
         "blood_type", "medication", "phone", "email"
+    ],
+    "patient data": [ # New entry for "patient data"
+        "patient_id", "name", "age", "gender", "admission_date", "diagnosis", "phone", "email"
     ],
     "hospital data": [
         "patient_id", "patient_name", "age", "gender", "admission_date",
@@ -1372,6 +1585,7 @@ FIELD_SYNONYM_TO_CANONICAL_MAP = {
     "customer name": "customer_name",
     "product name": "product_name", "item name": "product_name",
     "cost": "price", "product price": "price", # 'price' itself is a key
+    "order total": "order_total", # Ensure "order total" maps to the canonical field
     "number of items": "quantity", # 'quantity' itself is a key
     "payment method": "payment_method", "mode of payment": "payment_method",
     "delivery address": "delivery_address", "shipping address": "delivery_address",
@@ -1710,6 +1924,20 @@ def generate_synthetic_data(description):
                     if display_name not in detected_dpdp: detected_dpdp.append(display_name)
             else: # No canonical match, treat field_name_part_for_synonym as a novel field
                 novel_field_name_candidate = field_name_part_for_synonym
+                # Clean the candidate name by removing common instructional prefixes that might have been missed
+                # or are part of a sub-phrase.
+                instructional_prefixes_for_novel = [
+                    "a field for ", "a column for ", "field for ", "column for ",
+                    "data for ", "values for ", "entries for ",
+                    "generate ", "create ", "include ", "add "
+                ]
+                for prefix_to_remove in instructional_prefixes_for_novel:
+                    if novel_field_name_candidate.lower().startswith(prefix_to_remove):
+                        novel_field_name_candidate = novel_field_name_candidate[len(prefix_to_remove):].strip()
+                        # Update field_lower if novel_field_name_candidate changed
+                        field_lower = novel_field_name_candidate.lower() # Re-assign field_lower
+                        break # Remove only one prefix
+
                 # Basic cleaning: remove "field like", "fields like", "column like", "columns like"
                 novel_field_name_candidate = re.sub(r'\b(?:fields?|columns?)\s+like\b', '', novel_field_name_candidate, flags=re.IGNORECASE).strip()
                 
@@ -1722,6 +1950,8 @@ def generate_synthetic_data(description):
 
                 if parsed_type_hint_from_constraint: # Type hinted by parsed constraint
                     inferred_type = parsed_type_hint_from_constraint
+                elif novel_field_name_candidate.isdigit(): # Check if the novel field name is purely digits
+                    inferred_type = "int"
                 else: # No constraint parsed, or constraint didn't hint type, so infer from name
                     if any(kw in field_lower for kw in ["date", "time", "timestamp", "dob", "joining"]):
                         inferred_type = "date"
@@ -1742,13 +1972,29 @@ def generate_synthetic_data(description):
                 display_name = novel_field_name_candidate.replace("_", " ").title()
                 parsed_schema_fields.append({
                     "name": display_name,
-                    "type": inferred_type,
-                    "constraint": inferred_constraint,
+                    "type": inferred_type, # This will be used by generate_value
+                    "constraint": inferred_constraint, # This will be used by generate_value
                     "pii_handling": st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake"),
-                    "_original_canonical": display_name.lower().replace(" ", "_") # Treat as its own canonical for now
+                    "_original_canonical": display_name.lower().replace(" ", "_"), # Treat as its own canonical for now
+                    # Add a flag if this novel field seems like an alphanumeric ID
+                    "_is_inferred_alphanum_id": True if inferred_type == "string" and \
+                                                    any(kw in field_lower for kw in ["code", "identifier", "serial", "reference", "token", "key", "uid", "guid"]) and \
+                                                    not any(kw in field_lower for kw in ["id","number"]) and \
+                                                    not any(kw in field_lower for kw in ["email", "phone", "address", "name", "date", "url", "description", "text", "comment", "note", "message", "title", "subject", "label", "caption"]) \
+                                                    else False,
+                    "_inferred_prefix": (
+                        "ORD-" if "order" in field_lower and any(kw in field_lower for kw in ["code", "identifier", "ref"]) else
+                        "PROD-" if "product" in field_lower and any(kw in field_lower for kw in ["code", "identifier", "sku"]) else
+                        "USR-" if "user" in field_lower and any(kw in field_lower for kw in ["code", "identifier", "key"]) else
+                        "TK-" if "token" in field_lower else
+                        "KEY-" if "key" in field_lower and "api" not in field_lower else # Avoid "api key" becoming KEY-
+                        "SN-" if "serial" in field_lower else
+                        "REF-" if "reference" in field_lower else
+                        ""
+                    ) if inferred_type == "string" and any(kw in field_lower for kw in ["code", "identifier", "serial", "reference", "token", "key", "uid", "guid"]) else ""
                 })
                 processed_canonical_fields.add(display_name.lower().replace(" ", "_"))
-                if display_name in PII_FIELDS: # Check PII for novel fields too
+                if display_name in PII_FIELDS or any(pii_kw.lower() in display_name.lower() for pii_kw in PII_FIELDS): # Check PII for novel fields too
                     if display_name not in detected_pii: detected_pii.append(display_name)
                 if is_dpdp_pii(display_name):
                     if display_name not in detected_dpdp: detected_dpdp.append(display_name)
@@ -1842,9 +2088,9 @@ def generate_synthetic_data(description):
                  # Temporarily override field_schema_item for generate_value to include details from CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP
                  # This is a bit of a hack; ideally generate_value always gets the full effective schema for the field.
                  effective_schema_for_name = {**field_schema_item, **schema_details_for_canonical}
-                 data[col_display_name] = [generate_value(effective_schema_for_name) for _ in range(num_rows)]
+                 data[col_display_name] = [_generate_value_from_schema(effective_schema_for_name) for _ in range(num_rows)]
             else:
-                 data[col_display_name] = [generate_value(field_schema_item) for _ in range(num_rows)]
+                 data[col_display_name] = [_generate_value_from_schema(field_schema_item) for _ in range(num_rows)]
 
     # Create DataFrame
     synthetic_df = pd.DataFrame(data)
@@ -1866,7 +2112,7 @@ def generate_synthetic_data(description):
 
 # --- Value Generation Dispatcher ---
 VALUE_GENERATOR_FUNCTIONS = {
-    "string": _generate_string_value,
+    # "string" is now handled directly in generate_value to pass full_field_schema
     "int": _generate_int_value,
     "float": _generate_float_value,
     "date": _generate_date_value,
@@ -2099,10 +2345,10 @@ def get_field_pii_strategy(field_schema, global_default_strategy):
     # Field-specific strategy overrides global default
     return field_schema.get("pii_handling", global_default_strategy)
 
-def generate_value(field_schema, edge_condition=None):
+def _generate_value_from_schema(field_schema, edge_condition=None):
     """Generate a random value based on field type and constraint using a dispatch dictionary."""
     field_type = field_schema["type"]
-    constraint = field_schema["constraint"]
+    constraint = field_schema.get("constraint", "") # Ensure constraint exists
     # field_name = field_schema["name"] # field_name is available in field_schema
     
     default_pii_strategy = st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")
@@ -2112,6 +2358,13 @@ def generate_value(field_schema, edge_condition=None):
     # These flags would have been populated if field_schema came from CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP
     # or inferred during the renaming process.
     # Note: This is a representative subset. For full functionality, all relevant 'is_faker_...'
+    
+    # NEW: Handle inferred alphanumeric ID for novel fields first
+    if field_schema.get("_is_inferred_alphanum_id"):
+        prefix = field_schema.get("_inferred_prefix", "")
+        length = field_schema.get("length", random.randint(6, 10)) # Default length for inferred IDs
+        return f"{prefix}{''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=length))}"
+
     # and 'is_..._pattern' flags from CANONICAL_FIELD_TO_SCHEMA_DETAILS_MAP should be handled here.
 
     if field_schema.get("is_faker_city"): return fake.city()
@@ -2195,12 +2448,112 @@ def generate_value(field_schema, edge_condition=None):
         dt_obj = fake.date_time_this_year(tzinfo=timezone.utc) # Use timezone.utc
         return dt_obj.isoformat() # ISO format includes timezone
 
+    # If type is string and not handled by specific flags/patterns above,
+    # call _generate_string_value directly, passing the full_field_schema for hints.
+    if field_type == "string":
+        return _generate_string_value(constraint, field_schema["name"], current_pii_strategy, edge_condition=edge_condition, full_field_schema=field_schema)
+
     generator_func = VALUE_GENERATOR_FUNCTIONS.get(field_type)
     if generator_func:
         # Pass field_name for context within generator functions
         return generator_func(constraint, field_schema["name"], current_pii_strategy, edge_condition=edge_condition)
+
     st.warning(f"Unknown field type '{field_type}' for field '{field_schema['name']}'. Defaulting to N/A.")
     return "N/A" # Fallback for unknown types
+
+def generate_value(field_name_str: str):
+    """
+    Generates a single synthetic value for a given field name string,
+    intelligently inferring type and context for business, tech, or industrial use cases.
+
+    Args:
+        field_name_str (str): The name of the field to generate a value for.
+
+    Returns:
+        Any: A single synthetic value appropriate for the field name.
+
+    Example Usage:
+        # Business/Finance Examples:
+        generate_value("subscription_price")  # Returns: 49.99 (float in USD)
+        generate_value("monthly_recurring_revenue")  # Returns: 12500.75 (float in USD)
+        generate_value("customer_lifetime_value")  # Returns: 2500.50 (float in USD)
+        generate_value("churn_rate")  # Returns: 0.15 (float as percentage)
+        generate_value("conversion_rate")  # Returns: 0.023 (float as percentage)
+        
+        # Tech/SaaS Examples:
+        generate_value("api_endpoint")  # Returns: /v1/users/get (string)
+        generate_value("database_connection_string")  # Returns: postgresql://user:pass@host:5432/db (string)
+        generate_value("software_version")  # Returns: 2.1.3 (string)
+        generate_value("deployment_environment")  # Returns: production (category)
+        generate_value("server_status")  # Returns: running (category)
+        
+        # E-commerce Examples:
+        generate_value("product_sku")  # Returns: SKU-A42X-B7 (string)
+        generate_value("order_status")  # Returns: shipped (category)
+        generate_value("shipping_cost")  # Returns: 12.99 (float in USD)
+        generate_value("discount_percentage")  # Returns: 15.0 (float as percentage)
+        
+        # Analytics Examples:
+        generate_value("daily_active_users")  # Returns: 1250 (integer)
+        generate_value("bounce_rate")  # Returns: 0.45 (float as percentage)
+        generate_value("average_session_duration")  # Returns: 180 (integer in seconds)
+        generate_value("page_load_time")  # Returns: 1.2 (float in seconds)
+        
+        # HR/Employee Examples:
+        generate_value("employee_id")  # Returns: EMP-7321 (string)
+        generate_value("department")  # Returns: Engineering (category)
+        generate_value("job_title")  # Returns: Senior Software Engineer (string)
+        generate_value("salary_range")  # Returns: 80000-120000 (string)
+        
+        # Marketing Examples:
+        generate_value("campaign_id")  # Returns: CAMP-2024-Q1 (string)
+        generate_value("lead_source")  # Returns: Website (category)
+        generate_value("email_open_rate")  # Returns: 0.35 (float as percentage)
+        generate_value("click_through_rate")  # Returns: 0.12 (float as percentage)
+    """
+    # First, try to infer the schema from the field name
+    inferred_schema = infer_field_schema_from_name(field_name_str)
+    
+    # Add business-specific enhancements to the schema
+    field_lower = field_name_str.lower()
+    
+    # Business/Finance specific enhancements
+    if any(kw in field_lower for kw in ["revenue", "income", "price", "cost", "amount", "value"]):
+        if "rate" in field_lower or "percentage" in field_lower:
+            inferred_schema["type"] = "float"
+            inferred_schema["constraint"] = "0.0-1.0"  # Represent as decimal
+        else:
+            inferred_schema["type"] = "float"
+            inferred_schema["constraint"] = "10.0-10000.0"  # Business-appropriate range
+    
+    # Tech/SaaS specific enhancements
+    elif any(kw in field_lower for kw in ["api", "endpoint", "url", "path"]):
+        inferred_schema["type"] = "string"
+        inferred_schema["_hint_api_path"] = True
+    elif any(kw in field_lower for kw in ["version", "release"]):
+        inferred_schema["type"] = "string"
+        inferred_schema["_hint_version"] = True
+    elif any(kw in field_lower for kw in ["environment", "env"]):
+        inferred_schema["type"] = "category"
+        inferred_schema["constraint"] = "development,staging,production"
+    
+    # Analytics specific enhancements
+    elif any(kw in field_lower for kw in ["rate", "percentage", "ratio"]):
+        inferred_schema["type"] = "float"
+        inferred_schema["constraint"] = "0.0-1.0"
+    elif any(kw in field_lower for kw in ["duration", "time"]):
+        if "millisecond" in field_lower:
+            inferred_schema["type"] = "float"
+            inferred_schema["constraint"] = "0.0-1000.0"
+        elif "second" in field_lower:
+            inferred_schema["type"] = "float"
+            inferred_schema["constraint"] = "0.0-60.0"
+        else:
+            inferred_schema["type"] = "int"
+            inferred_schema["constraint"] = "0-3600"
+    
+    # Generate the value based on the enhanced schema
+    return _generate_value_from_schema(inferred_schema)
 
 # --- Helper for Dependency Handling ---
 def _get_dependent_value(current_row_data, dependent_field_name_lower): # Already imported, ensure it's available
@@ -2298,12 +2651,25 @@ def generate_value_with_dependencies(field_schema, current_row_data, edge_condit
         dt_obj = fake.date_time_this_year(tzinfo=timezone.utc)
         return dt_obj.isoformat()
 
+    # If type is string and not handled by specific flags/patterns above,
+    # call _generate_string_value directly, passing the full_field_schema for hints.
+    if field_type == "string":
+        return _generate_string_value(constraint, field_name, current_pii_strategy, edge_condition=edge_condition, full_field_schema=field_schema)
+
     generator_func = VALUE_GENERATOR_FUNCTIONS.get(field_type)
     if generator_func:
         return generator_func(constraint, field_name, current_pii_strategy, edge_condition=edge_condition)
 
     st.warning(f"Unknown field type '{field_type}' for field '{field_name}' in dependency generator. Defaulting to N/A.")
     return "N/A"
+
+def generate_value_for_field(field_name_str):
+    """
+    Generates a single synthetic value for a given field name string,
+    even if the field name is random or never seen before.
+    """
+    inferred_schema = infer_field_schema_from_name(field_name_str)
+    return _generate_value_from_schema(inferred_schema)
 
 
 def get_generation_order(table_schemas, relationships):
@@ -3245,9 +3611,6 @@ def calculate_bias_score(df):
         probabilities = counts / len(df[col].dropna())
         # Ensure probabilities sum to 1 (or close to it) and handle potential floating point issues
         probabilities = probabilities[probabilities > 0] # Remove categories with 0 count after dropna
-        if probabilities.sum() == 0: # Avoid division by zero if all probabilities became zero
-            column_scores.append(50) # Undetermined
-            continue
         probabilities = probabilities / probabilities.sum() # Re-normalize
 
         if len(probabilities) <= 1: # After cleaning, might have only one category left
@@ -3466,7 +3829,7 @@ def _synthesize_categorical_column_from_upload(original_series, column_name, num
         if keyword in column_name.lower() and (column_name in PII_FIELDS or is_dpdp_pii(column_name)):
             default_pii_strategy = st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")
             field_schema_for_gen = {"type": gen_type, "constraint": gen_constraint, "name": column_name, "pii_handling": default_pii_strategy}
-            return pd.Series([generate_value(field_schema_for_gen) for _ in range(num_rows_to_generate)], name=column_name)
+            return pd.Series([_generate_value_from_schema(field_schema_for_gen) for _ in range(num_rows_to_generate)], name=column_name)
 
     # Non-PII: sample from original distribution
     cleaned_series = original_series.dropna()
@@ -3899,6 +4262,8 @@ with tab3:
                 # Also clear data from other generation tabs as a new base file is being introduced
                 st.session_state.prompt_generated_df = None
                 st.session_state.generated_data_frames = {}
+                st.session_state.active_display_table_name = None
+                st.session_state.playground_generated_df = None
                 st.session_state.num_rows_for_file_upload_tab3 = len(df) # Reset num_rows default
 
             st.markdown("---")
@@ -4526,192 +4891,3 @@ with tab_advanced_lab:
                     mime="text/csv",
                     key="download_csv_federated_output"
                 )
-    elif st.session_state.advanced_lab_selection == "🌐 Community Marketplace":
-        st.subheader("🌐 Community Dataset Marketplace (Conceptual)")
-        st.markdown("""
-        Discover, share, and collaborate on synthetic dataset templates. This marketplace aims to foster a
-        vibrant ecosystem for synthetic data, accelerating development and research.
-        
-        **Features (Conceptual):**
-        - **Publish Templates:** Share your own schema templates (from the Smart Schema Editor).
-        - **Browse & Discover:** Find templates for various domains and use cases.
-        - **Rate & Discuss:** Provide feedback and engage with other users.
-        - **Versioning:** Track changes and improvements to templates.
-        - **Trust Badges:** Identify verified or high-quality templates.
-
-        **Current Status:** This is a conceptual placeholder. A full marketplace requires a backend database, user authentication, and moderation.
-        """)
-        st.info("✨ **Vision for the Future:** A collaborative hub for synthetic data innovation.")
-        st.markdown("---")
-
-        st.subheader("Browse Community Templates (Simulated)")
-        if not st.session_state.marketplace_templates:
-            st.info("No community templates available yet. Be the first to publish!")
-        
-        for i, template in enumerate(st.session_state.marketplace_templates):
-            with st.expander(f"**{template['name']}** by {template['author']} (Rating: {template['rating']} ⭐)"):
-                st.markdown(f"**Description:** {template['description']}")
-                st.markdown(f"**Downloads:** {template['downloads']} | **Discussions:** {template['discussions']} | **Badge:** `{template['trust_badge']}`")
-                cols_market = st.columns(3)
-                if cols_market[0].button("Load to Smart Schema Editor", key=f"market_load_{i}"):
-                    st.info(f"Conceptual: Loading '{template['name']}' into Smart Schema Editor. (Not implemented in this placeholder)")
-                if cols_market[1].button("View Details/Discuss", key=f"market_discuss_{i}"):
-                    st.info(f"Conceptual: Opening discussion page for '{template['name']}'. (Not implemented)")
-                if cols_market[2].button("Rate Template", key=f"market_rate_{i}"):
-                    st.info(f"Conceptual: Opening rating dialog for '{template['name']}'. (Not implemented)")
-        st.markdown("---")
-
-        st.subheader("Publish Your Dataset Template (Simulated)")
-        st.markdown("Share a schema you've created in the 'Smart Schema Editor' with the community.")
-        
-        st.session_state.marketplace_new_template_name = st.text_input(
-            "Template Name:", 
-            value=st.session_state.marketplace_new_template_name, 
-            key="market_new_name"
-        )
-        st.session_state.marketplace_new_template_description = st.text_area(
-            "Description:", 
-            value=st.session_state.marketplace_new_template_description, 
-            key="market_new_desc"
-        )
-        st.session_state.marketplace_new_template_author = st.text_input(
-            "Your Name/Organization (Author):", 
-            value=st.session_state.marketplace_new_template_author, 
-            key="market_new_author"
-        )
-        # In a real system, you'd select a schema from st.session_state.table_schemas
-        st.caption("Conceptual: In a full implementation, you would select one of your saved schemas from the Smart Schema Editor to publish.")
-
-        if st.button("Publish Template to Marketplace (Simulated)", key="market_publish_btn", disabled=not (st.session_state.marketplace_new_template_name and st.session_state.marketplace_new_template_description)):
-            new_community_template = {"name": st.session_state.marketplace_new_template_name, "description": st.session_state.marketplace_new_template_description, "author": st.session_state.marketplace_new_template_author, "rating": 0.0, "downloads": 0, "discussions": 0, "trust_badge": "New"}
-            st.session_state.marketplace_templates.append(new_community_template)
-            st.success(f"Template '{st.session_state.marketplace_new_template_name}' conceptually published!")
-            st.session_state.marketplace_new_template_name = ""
-            st.session_state.marketplace_new_template_description = ""
-            st.rerun()
-    
-    elif st.session_state.advanced_lab_selection == "☁️ Cloud Deploy (Sandbox)":
-        st.subheader("☁️ One-Click Deploy to Cloud/Sandbox (Conceptual)")
-        st.markdown("""
-        Instantly deploy your generated synthetic datasets to popular cloud databases or sandboxes for rapid prototyping,
-        demos, or integration testing. This feature aims to remove friction and accelerate your development workflow.
-
-        **Supported Databases (Conceptual):**
-        - Supabase (PostgreSQL)
-        - Neon (Serverless PostgreSQL)
-        - Google BigQuery
-        - ... and more in the future!
-
-        **Current Status:** This is a conceptual placeholder. Full implementation requires secure credential handling,
-        database client integrations, schema mapping, and robust error management.
-        """)
-        st.info("✨ **Vision for the Future:** Seamlessly move your synthetic data from generation to a live testing environment.")
-        st.markdown("---")
-
-        # Determine if any data is available for deployment
-        available_data_for_deploy = None
-        if st.session_state.get('prompt_generated_df') is not None:
-            st.session_state.cloud_deploy_data_source = "Text Prompt Output"
-            available_data_for_deploy = st.session_state.prompt_generated_df
-        elif st.session_state.get('generated_data_frames') and st.session_state.get('active_display_table_name') in st.session_state.generated_data_frames:
-            st.session_state.cloud_deploy_data_source = f"Smart Schema: {st.session_state.active_display_table_name}"
-            available_data_for_deploy = st.session_state.generated_data_frames[st.session_state.active_display_table_name]
-        elif st.session_state.get('synthetic_df_from_file_tab3') is not None:
-            st.session_state.cloud_deploy_data_source = "File-based Generation Output"
-            available_data_for_deploy = st.session_state.synthetic_df_from_file_tab3
-        elif st.session_state.get('playground_generated_df') is not None:
-            st.session_state.cloud_deploy_data_source = "Scenario Playground Output"
-            available_data_for_deploy = st.session_state.playground_generated_df
-        else:
-            st.session_state.cloud_deploy_data_source = None
-        
-        if st.session_state.cloud_deploy_data_source:
-            st.success(f"Data available for conceptual deployment from: **{st.session_state.cloud_deploy_data_source}** ({available_data_for_deploy.shape[0]} rows, {available_data_for_deploy.shape[1]} cols)")
-        else:
-            st.warning("No recently generated dataset found. Please generate some data first (e.g., via Text Prompt, Smart Schema, File-based, or Playground) to conceptually deploy it.")
-
-        st.session_state.cloud_deploy_db_type = st.selectbox(
-            "Select Target Database Type (Conceptual):",
-            options=["Supabase (PostgreSQL)", "Neon (Serverless PostgreSQL)", "Google BigQuery"],
-            index=["Supabase (PostgreSQL)", "Neon (Serverless PostgreSQL)", "Google BigQuery"].index(st.session_state.cloud_deploy_db_type),
-            key="cloud_deploy_db_selector"
-        )
-        st.text_input("Connection Details / API Key (Conceptual - Do Not Enter Real Credentials):", value=st.session_state.cloud_deploy_connection_string, key="cloud_deploy_conn_str", type="password", disabled=True)
-        st.session_state.cloud_deploy_table_name = st.text_input("Target Table Name:", value=st.session_state.cloud_deploy_table_name, key="cloud_deploy_table")
-
-        if st.button("Deploy to Cloud (Simulated)", key="cloud_deploy_btn", disabled=(available_data_for_deploy is None)):
-            st.info(f"Placeholder: Simulating deployment of '{st.session_state.cloud_deploy_data_source}' to '{st.session_state.cloud_deploy_db_type}' table '{st.session_state.cloud_deploy_table_name}'. This would involve secure connection and data transfer.")
-            st.success("Conceptual deployment initiated!")
-
-# Sidebar with Instructions
-st.sidebar.title(f"{APP_NAME} Guide")
-st.sidebar.markdown(f"""
-1. **Text Input Method**:
-   - Describe the dataset you want
-   - Example: "10 rows of employee data with name, age, salary, email"
-   - Example keywords:
-     * Personal: name, email, phone, address
-     * Professional: age, salary, job, company
-     * Demographic: gender
-     * Indian IDs: aadhaar, pan, passport, voterid
-
-2. **Smart Schema Editor**:
-   - Define exact field types, constraints, and PII handling for each field.
-   - Add constraints like age ranges (18-60) or salary ranges (₹20K-₹5L)
-   - Define Edge Cases to inject specific scenarios.
-   - Customize the structure of your synthetic data.
-
-3. **Privacy Controls**:
-   - **Granular PII Handling**: Choose how sensitive fields are generated (Realistic Fake, Masked, Redacted, Scramble Column).
-   - DPDP Act compliance warnings.
-   - PII risk assessment.
-
-4. **File Upload Method**:
-   - Upload an existing CSV or XLSX file.
-   - Generate synthetic version of your data.
-   - Analyze bias and distribution of the *original* data.
-
-4. **Scenario Playground**:
-   - Quickly test specific edge cases.
-   - Select a base schema template.
-   - Define edge case rules and generate a small dataset to observe their effect.
-
-5. **PII Protection**:
-   - Automatic detection of PII.
-   - Warnings for potential privacy risks.
-
-6. **Community Gallery**:
-   - Explore predefined schema templates for various domains.
-   - Quickly load a template into the Smart Schema Editor to get started.
-
-7. **🔬 Advanced Lab (Future Development)**:
-   - **🤖 AI-Powered Generation**: Use GANs, VAEs, or GPT-like models.
-   - **🛡️ Differential Privacy**: Apply DP for strong privacy guarantees.
-   - **🏆 Quality Benchmarking**: Assess synthetic data fidelity, utility, and privacy.
-   - **🤝 Federated Generation**: Collaboratively generate data across organizations.
-   - **🌐 Community Marketplace**: Share and discover dataset templates.
-   - **☁️ Cloud Deploy (Sandbox)**: Instantly deploy datasets to cloud DBs.
-   - *These advanced features are currently conceptual placeholders.*
-
-8. **Language Support**:
-   - **Data Generation Focus**: Choose "Indian Context" for data like names, addresses, and phone numbers tailored to India. Select "Global/Random" for more generic, often US-centric, data.
-   - **Indian Locale Selection**: If "Indian Context" is chosen, you can further select a specific Indian language/region (e.g., Hindi, Tamil) for Faker-generated fields.
-   - *Note: Custom category lists (e.g., product names, diagnoses) remain primarily English-based for now.*
-
-
-**Other Features**:
-   - Generate synthetic data.
-   - Download as CSV or Excel.
-   - Bias checking.
-   - Ethical scorecard.
-   - PII risk assessment.
-   - Edge Case Injection.
-
-**Powered by {APP_NAME}**: Transforming data privacy, one synthetic dataset at a time.
-""")
-
-# Footer
-st.markdown(f"""
----
-*{APP_NAME} - Synthetic Data Generator* | Privacy-First Data Transformation
-""")
