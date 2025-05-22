@@ -22,6 +22,19 @@
   <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
 
   <style>
+    :root {
+      --primary-text-color: #ffffff;
+      --secondary-text-color: #cccccc;
+      --text-color-light: #e0e0e0; /* For slightly lighter secondary text */
+      --text-color-muted: #aaaaaa; /* For footer or very subtle text */
+      --accent-color-glow: #00c0ff; /* Primary accent for glows/links */
+      --card-bg-color: rgba(255, 255, 255, 0.05);
+      --card-border-color: rgba(255, 255, 255, 0.1);
+      --card-border-stronger-color: rgba(255, 255, 255, 0.2); /* For elements like pricing cards */
+      --default-border-radius: 8px;
+      --card-border-radius: 16px;
+    }
+
     * {
       margin: 0;
       padding: 0;
@@ -30,12 +43,13 @@
 
     body {
       font-family: 'Manrope', sans-serif;
-      color: #ffffff;
+      color: var(--primary-text-color);
       background: linear-gradient(270deg, #000000, #1a1a1a, #333333);
       background-size: 600% 600%;
       animation: gradientBG 15s ease infinite;
       overflow-x: hidden;
       position: relative;
+      /* scroll-behavior: smooth; /* Moved to html for better compatibility */
     }
 
     @keyframes gradientBG {
@@ -43,6 +57,10 @@
       50% { background-position: 100% 50%; }
       100% { background-position: 0% 50%; }
     }
+    html {
+      scroll-behavior: smooth;
+    }
+
 
     #particles-js {
       position: fixed;
@@ -52,20 +70,56 @@
     }
 
     header {
-      padding: 3rem 2rem 2rem;
+      padding: 2rem 2rem 2rem; /* Adjusted padding for nav */
       text-align: center;
+    }
+
+    .main-nav {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem; /* Spacing between nav items */
+      margin-bottom: 2.5rem; /* Space below the nav before the main heading */
+      flex-wrap: wrap; /* Allow nav items to wrap on smaller screens */
+    }
+
+    .main-nav a {
+      color: var(--secondary-text-color);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 0.5rem 0; /* Add some padding for easier clicking */
+      transition: color 0.3s ease, transform 0.3s ease;
+      position: relative; /* For the underline effect */
+    }
+
+    .main-nav a::after { /* Subtle underline effect on hover/focus */
+      content: '';
+      position: absolute;
+      width: 0;
+      height: 2px;
+      bottom: -2px; /* Position underline slightly below text */
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: var(--accent-color-glow);
+      transition: width 0.3s ease;
+    }
+
+    .main-nav a:hover,
+    .main-nav a:focus { /* Ensure focus state is also styled */
+      color: var(--primary-text-color);
+      transform: translateY(-2px); /* Slight lift on hover */
+    }
+
+    .main-nav a:hover::after,
+    .main-nav a:focus::after {
+      width: 100%;
     }
 
     header h1 {
       font-size: 3rem;
       font-weight: 700;
-      color: #ffffff;
-    }
-
-    header p {
-      font-size: 1.2rem;
-      color: #cccccc;
-      margin-top: 0.5rem;
+      color: var(--primary-text-color);
+      margin-bottom: 0.5rem; /* Space between H1 and subtitle */
     }
 
     .buttons {
@@ -81,7 +135,7 @@
       padding: 0.9rem 2rem;
       font-size: 1rem;
       border: none;
-      border-radius: 8px;
+      border-radius: var(--default-border-radius);
       cursor: pointer;
       font-weight: 600;
       transition: all 0.3s ease;
@@ -91,9 +145,9 @@
     }
 
     .btn-try {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid #cccccc;
-      color: #ffffff;
+      background: var(--card-bg-color);
+      border: 1px solid var(--secondary-text-color);
+      color: var(--primary-text-color);
     }
 
     .btn-try:hover {
@@ -116,11 +170,11 @@
     }
 
     .feature-card {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--card-bg-color);
       backdrop-filter: blur(12px);
       padding: 2rem;
-      border-radius: 16px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--card-border-radius);
+      border: 1px solid var(--card-border-color);
       transition: all 0.3s ease;
       text-align: left;
     }
@@ -140,11 +194,11 @@
     }
 
     .info-card {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--card-bg-color);
       backdrop-filter: blur(12px);
       padding: 2rem 2.5rem; 
-      border-radius: 16px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--card-border-radius);
+      border: 1px solid var(--card-border-color);
       box-shadow: 0 0 15px rgba(255, 255, 255, 0.05);
       transition: all 0.3s ease;
     }
@@ -175,14 +229,14 @@
       font-weight: 700;
       margin-bottom: 1rem;
       font-size: 1.8rem;
-      color: #ffffff;
+      color: var(--primary-text-color);
     }
 
     .info-card ul {
       list-style-type: disc;
       margin-left: 1.2rem;
       margin-top: 1rem;
-      color: #cccccc; 
+      color: var(--secondary-text-color);
       font-size: 1rem;
       line-height: 1.5;
     }
@@ -191,16 +245,17 @@
     }
 
     .visual-placeholder {
-      background: rgba(255, 255, 255, 0.03); /* Subtle background to lift it slightly */
-      border: 1px solid rgba(255, 255, 255, 0.08); /* Border consistent with card style */
-      border-radius: 12px; /* Consistent with card radius */
-      padding: 0.5rem; /* Small padding around the visual content */
+      background: rgba(10, 20, 30, 0.3); /* Dark, abstract background to let particles show through */
+      border: none; /* Removed border for a cleaner look */
+      border-radius: var(--card-border-radius); /* Consistent with card radius */
+      padding: 1rem; /* Adjusted padding */
       margin-bottom: 1.5rem; /* Maintain existing bottom margin */
       overflow: hidden; /* Ensure content corners are clipped if they have their own radius */
       display: flex; /* For centering the 3D content */
       align-items: center;
       justify-content: center;
-      min-height: 280px; /* Give it some space for the 3D effect */
+      min-height: 320px; /* Adjusted height for the new 3D effect */
+      position: relative;
     }
 
     .perspective-wrapper {
@@ -208,36 +263,61 @@
       width: 70%; /* Adjusted width of the 3D element */
       height: 170px; /* Adjusted height of the 3D element */
       position: relative;
-      transform-style: preserve-3d; /* Crucial for children to be in 3D space */
+      transform-style: preserve-3d;
+      transform: rotateX(20deg) rotateY(-25deg) scale(0.9); /* Slight rotation for 3D perspective */
     }
-
-    @keyframes dataStream { /* For the ::before pseudo-element - more pronounced flow */
-      0% { background-position: 0% 0%; }
-      100% { background-position: -200% -200%; } /* Increased movement for visibility */
-    }
-
 
     /* Original pulseGlow for outer layers */
     @keyframes pulseGlow {
       0%, 100% {
-        box-shadow: 0 0 5px rgba(100, 180, 255, 0.2), 0 0 10px rgba(100, 180, 255, 0.1);
-        border-color: rgba(100, 180, 255, 0.3);
+        box-shadow:
+          /* Holographic edge - subtle inner highlight */
+          inset 0 0 2px rgba(150, 230, 255, 0.5),
+          inset 0 0 6px rgba(100, 220, 255, 0.3),
+          /* Main outer soft glow */
+          0 0 15px rgba(0, 191, 255, 0.35),
+          0 0 25px rgba(0, 150, 230, 0.25),
+          0 0 35px rgba(0, 120, 200, 0.15),
+          /* Soft depth shadow */
+          0px 4px 18px rgba(0, 50, 80, 0.2);
+        border-color: rgba(0, 191, 255, 0.5); /* Slightly more vibrant border */
       }
       50% {
-        box-shadow: 0 0 15px rgba(120, 200, 255, 0.4), 0 0 25px rgba(120, 200, 255, 0.2);
-        border-color: rgba(120, 200, 255, 0.5);
+        box-shadow:
+          /* Holographic edge - brighter inner highlight */
+          inset 0 0 3px rgba(180, 240, 255, 0.8),
+          inset 0 0 8px rgba(120, 230, 255, 0.6),
+          /* Main outer soft glow - intensified */
+          0 0 25px rgba(0, 210, 255, 0.6),
+          0 0 40px rgba(0, 180, 255, 0.45),
+          0 0 55px rgba(0, 150, 240, 0.35),
+          /* Enhanced depth shadow */
+          0px 6px 22px rgba(0, 70, 100, 0.35);
+        border-color: rgba(0, 210, 255, 0.8); /* Brighter border for holographic effect */
       }
     }
 
     /* More intense pulseGlow for the middle (processing) layer */
     @keyframes pulseGlowIntense {
       0%, 100% {
-        box-shadow: 0 0 10px rgba(120, 200, 255, 0.3), 0 0 18px rgba(120, 200, 255, 0.2);
-        border-color: rgba(120, 200, 255, 0.4);
+        box-shadow:
+          inset 0 0 2px rgba(180, 245, 255, 0.6), 
+          inset 0 0 7px rgba(130, 235, 255, 0.4),
+          0 0 18px rgba(50, 220, 255, 0.55),
+          0 0 30px rgba(50, 200, 255, 0.45),
+          0 0 45px rgba(50, 180, 240, 0.35),
+          0px 5px 20px rgba(0, 60, 90, 0.25);
+        border-color: rgba(50, 220, 255, 0.7);
       }
       50% {
-        box-shadow: 0 0 25px rgba(150, 220, 255, 0.6), 0 0 35px rgba(150, 220, 255, 0.4);
-        border-color: rgba(150, 220, 255, 0.7);
+        box-shadow:
+          inset 0 0 4px rgba(200, 250, 255, 0.9),
+          inset 0 0 10px rgba(150, 240, 255, 0.7),
+          0 0 30px rgba(80, 230, 255, 0.85),
+          0 0 50px rgba(80, 210, 255, 0.65),
+          0 0 70px rgba(80, 190, 255, 0.45),
+          0px 8px 28px rgba(0, 80, 120, 0.4);
+        border-color: rgba(100, 240, 255, 1); /* Very bright, almost solid border */
       }
     }
 
@@ -245,16 +325,20 @@
       position: absolute;
       width: 100%;
       height: 100%;
-      border-radius: 8px;
-      /* Default background, will be overridden by specific layers */
-      background: linear-gradient(145deg, 
-        rgba(30, 100, 220, 0.25) 0%, 
-        rgba(80, 150, 255, 0.15) 30%, 
-        rgba(50, 120, 240, 0.2) 70%, 
-        rgba(100, 180, 255, 0.1) 100%
-      );
-      border: 1px solid rgba(100, 180, 255, 0.3);
-      box-shadow: 0 2px 10px rgba(50, 150, 255, 0.2);
+      border-radius: var(--default-border-radius);
+      background: rgba(15, 40, 70, 0.35); /* Semi-transparent base for panels */
+      backdrop-filter: blur(10px); /* Frosted glass effect */
+      border: 1px solid rgba(0, 191, 255, 0.3); /* Cyan border */
+      /* Enhanced initial box-shadow for glow, holographic edge, and depth */
+      box-shadow:
+        /* Holographic edge - subtle inner highlight */
+        inset 0 0 2px rgba(150, 230, 255, 0.4),
+        inset 0 0 5px rgba(100, 220, 255, 0.2),
+        /* Main outer soft glow */
+        0 0 12px rgba(0, 191, 255, 0.25),
+        0 0 22px rgba(0, 150, 230, 0.15),
+        /* Subtle depth indication */
+        0px 3px 15px rgba(0, 40, 70, 0.15);
       transform-style: preserve-3d; /* If layers themselves had children in 3D */
       transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.4s ease, border-color 0.4s ease;
       animation: pulseGlow 3s infinite ease-in-out; /* Add pulsing animation */
@@ -264,7 +348,7 @@
       position: absolute;
       bottom: 10px; /* Position at the bottom of the layer */
       left: 50%;
-      transform: translateX(-50%) translateZ(1px); /* Center it and bring slightly forward if needed */
+      transform: translateX(-50%) translateZ(5px); /* Center it and bring slightly forward */
       color: rgba(255, 255, 255, 0.7);
       font-size: 0.7rem;
       font-weight: 600;
@@ -273,134 +357,133 @@
       pointer-events: none; /* So it doesn't interfere with hover on the layer itself */
     }
 
-    .data-layer::before { /* Animated data stream effect */
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      border-radius: 8px; /* Match parent's border-radius */
-      background: linear-gradient( /* More defined diagonal streaming lines */
-        -45deg, 
-        transparent 40%, 
-        rgba(255, 255, 255, 0.05) 48%, 
-        rgba(255, 255, 255, 0.1) 50%, 
-        rgba(255, 255, 255, 0.05) 52%, 
-        transparent 60%
-      ),
-      linear-gradient( /* Fainter secondary set of lines for more texture */
-        45deg,
-        transparent 45%,
-        rgba(255,255,255,0.02) 49%,
-        rgba(255,255,255,0.04) 50%,
-        rgba(255,255,255,0.02) 51%,
-        transparent 55%
-      );
-      background-size: 100px 100px, 70px 70px; /* Control density of lines */
-      opacity: 0.8; /* Slightly reduced opacity to not overwhelm layer color */
-      pointer-events: none; /* Ensure it doesn't interfere with hover on the main layer */
-      animation: dataStream 3.5s linear infinite; /* Apply the data stream animation, slightly faster */
-    }
     .data-layer.layer-1 { /* Backmost layer - "Raw/Diverse Input" */
-      transform: rotateX(55deg) translateY(-20px) translateZ(-50px); /* Adjusted transform */
-      background: linear-gradient(135deg, /* Gradient suggesting varied, unprocessed content */
-        rgba(80, 100, 130, 0.28) 0%,  /* Slightly muted start */
-        rgba(60, 80, 110, 0.38) 25%,  /* Darker, denser patch */
-        rgba(110, 130, 160, 0.22) 50%, /* Lighter, less defined patch */
-        rgba(70, 90, 120, 0.33) 75%,   /* Another denser patch */
-        rgba(130, 150, 180, 0.25) 100% /* Muted end */
-      );
+      transform: translateZ(-70px); /* Bottom layer */
+      /* Slightly darker/muted tint for raw input */
+      background: linear-gradient(145deg, rgba(10, 30, 50, 0.4) 0%, rgba(0, 20, 40, 0.5) 100%);
       animation-delay: -1s; /* Offset animation for variety */
-      /* z-index: 1; Ensure back layer is behind others if needed, though translateZ handles this */
     }
     .data-layer.layer-2 { /* Middle layer - "AI Processing Core" - more active */
-      transform: rotateX(55deg) translateY(0px) translateZ(0px); /* Adjusted transform */
-      background: linear-gradient(145deg, 
-        rgba(60, 160, 255, 0.4) 0%,  /* Slightly brighter base for processing */
-        rgba(110, 190, 255, 0.3) 30%, 
-        rgba(90, 180, 255, 0.35) 70%, 
-        rgba(130, 210, 255, 0.25) 100%
-      ); /* Brighter, more active gradient for the central layer */
+      transform: translateZ(0px); /* Middle layer */
+      /* Standard panel background, intense glow will make it pop */
+      background: linear-gradient(145deg, rgba(20, 50, 80, 0.45) 0%, rgba(10, 40, 70, 0.55) 100%);
       animation: pulseGlowIntense 2.5s infinite ease-in-out; /* Use the more intense glow, slightly faster */
-      /* z-index: 2; */
     }
     .data-layer.layer-3 { /* Frontmost layer - "Clean Synthesized Output" */
-      transform: rotateX(55deg) translateY(20px) translateZ(50px); /* Adjusted transform */
-      background: linear-gradient(145deg, /* Cleaner, brighter gradient for refined output */
-        rgba(80, 180, 255, 0.5) 0%,  /* Brighter, clearer blue */
-        rgba(120, 200, 255, 0.4) 40%, /* Smooth transition to a lighter shade */
-        rgba(100, 190, 255, 0.45) 70%,/* Maintaining clarity */
-        rgba(150, 220, 255, 0.35) 100% /* Lighter, almost ethereal end */
-      );
+      transform: translateZ(70px); /* Top layer */
+      /* Slightly brighter/cleaner tint for refined output */
+      background: linear-gradient(145deg, rgba(30, 70, 110, 0.4) 0%, rgba(20, 60, 100, 0.5) 100%);
       animation-delay: -0.5s; /* Offset animation */
-      /* z-index: 3; */
     }
 
-    /* Customize data stream appearance per layer for more meaning */
-    .data-layer.layer-1::before {
-      animation-duration: 5s; /* Slower stream for raw input */
-      opacity: 0.65; /* Slightly more subtle */
+    /* --- Data Flow Particles --- */
+    .flow-container {
+      position: absolute;
+      width: 60%; /* Width of the particle stream area */
+      height: 70px; /* Vertical travel distance for particles, matches inter-layer Z distance */
+      left: 20%; /* Center the stream horizontally */
+      top: 50%;  /* Center the container vertically within perspective-wrapper */
+      transform-style: preserve-3d;
+      pointer-events: none; /* So particles don't interfere with layer hover */
     }
-    .data-layer.layer-2::before {
-      animation-duration: 2.5s; /* Faster stream for active AI core processing */
-      opacity: 0.9; /* More prominent */
+
+    .flow-1-to-2 {
+      /* Position between layer 1 (Z:-70) and layer 2 (Z:0) */
+      transform: translateY(-50%) translateZ(-35px);
     }
-    .data-layer.layer-3::before {
-      animation-duration: 4s; /* Smooth, steady stream for refined output */
-      background: linear-gradient( /* Cleaner, single set of streaming lines */
-        -45deg,
-        transparent 42%, rgba(255, 255, 255, 0.08) 49%,
-        rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.08) 51%,
-        transparent 58% );
-      background-size: 120px 120px; /* Wider, smoother lines */
-      opacity: 0.85;
+
+    .flow-2-to-3 {
+      /* Position between layer 2 (Z:0) and layer 3 (Z:70) */
+      transform: translateY(-50%) translateZ(35px);
+    }
+
+    .data-flow-particle {
+      position: absolute;
+      width: 3px;
+      height: 3px;
+      background-color: #40e0d0; /* Bright turquoise */
+      border-radius: 50%;
+      box-shadow: 0 0 3px #40e0d0, 0 0 6px #40e0d0, 0 0 9px #00c0ff; /* Turquoise/cyan glow */
+      opacity: 0;
+      animation: flowParticleUp 2.2s infinite ease-in-out;
+    }
+
+    @keyframes flowParticleUp {
+      0%   { opacity: 0; transform: translate(0px, 35px) scale(0.5); } /* Start at bottom, small */
+      20%  { opacity: 0.8; transform: translate(2px, 20px) scale(0.8); } /* Fade in, move up and slightly right */
+      50%  { opacity: 0.8; transform: translate(-2px, 0px) scale(0.8); } /* Mid-point, slightly left */
+      80%  { opacity: 0.8; transform: translate(1px, -20px) scale(0.8); }/* Continue moving up, slightly right */
+      100% { opacity: 0; transform: translate(0px, -35px) scale(0.5); } /* Fade out at top, small */
+    }
+
+    /* Stagger particle animations and horizontal positions */
+    .data-flow-particle:nth-child(1) { left: 20%; animation-delay: 0s; }
+    .data-flow-particle:nth-child(2) { left: 40%; animation-delay: 0.3s; }
+    .data-flow-particle:nth-child(3) { left: 60%; animation-delay: 0.6s; }
+    .data-flow-particle:nth-child(4) { left: 80%; animation-delay: 0.9s; }
+    .data-flow-particle:nth-child(5) { left: 30%; animation-delay: 1.2s; } /* Offset for variety */
+    .data-flow-particle:nth-child(6) { left: 70%; animation-delay: 1.5s; } /* Offset for variety */
+
+    /* Slightly different appearance for particles in the second flow for visual distinction if desired */
+    .flow-2-to-3 .data-flow-particle {
+      /* background-color: #50fa7b; */ /* Example: Greenish for refined output flow */
+      /* box-shadow: 0 0 3px #50fa7b, 0 0 6px #50fa7b, 0 0 9px #00e060; */
     }
 
     .perspective-wrapper:hover .data-layer { /* Subtle shift on hover */
-      /* Base hover transform - individual layers will override parts of this */
-      box-shadow: 0 5px 25px rgba(100, 180, 255, 0.3), 0 0 15px rgba(150, 220, 255, 0.2);
+      /* Enhanced glow on hover, incorporating holographic edge and depth */
+      box-shadow:
+        inset 0 0 3px rgba(180, 240, 255, 0.7), /* Brighter inner highlight */
+        inset 0 0 8px rgba(120, 230, 255, 0.5),  /* Softer brighter inner glow */
+        0 0 22px rgba(0, 210, 255, 0.55),       /* Main glow */
+        0 0 38px rgba(0, 180, 255, 0.40),      /* Wider glow */
+        0 0 55px rgba(0, 150, 240, 0.30),     /* Farthest glow */
+        /* Slightly more pronounced depth shadow on hover */
+        0px 7px 25px rgba(0, 70, 100, 0.3);
       animation-play-state: paused; /* Pause pulsing on hover to focus on transform */
     }
     /* Specific hover transforms to make them fan out a bit more */
     .perspective-wrapper:hover .data-layer.layer-1 {
-      transform: rotateX(50deg) translateY(-15px) translateZ(-35px) scale(1.05);
+      transform: translateZ(-90px) translateY(-10px) scale(1.03); /* Push further back and slightly up */
     }
     .perspective-wrapper:hover .data-layer.layer-2 {
-      transform: rotateX(50deg) translateY(0px) translateZ(0px) scale(1.07); /* Middle one slightly more prominent */
+      transform: translateZ(0px) scale(1.05); /* Middle one more prominent */
     }
     .perspective-wrapper:hover .data-layer.layer-3 {
-      transform: rotateX(50deg) translateY(15px) translateZ(35px) scale(1.05);
+      transform: translateZ(90px) translateY(10px) scale(1.03); /* Bring further forward and slightly down */
     }
     .pricing-card { /* Basic styling for pricing cards */
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      padding: 2rem;
-      border-radius: 12px;
+      border: 1px solid var(--card-border-stronger-color);
+      /* padding: 2rem; */ /* Inherits from .feature-card */
+      /* border-radius: 12px; */ /* Inherits from .feature-card */
     }
     .testimonial-card {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--card-bg-color);
       backdrop-filter: blur(10px);
       padding: 1.5rem;
-      border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--card-border-radius);
+      border: 1px solid var(--card-border-color);
       font-style: italic;
     }
-    .testimonial-card p { color: #e0e0e0; }
-    .testimonial-card .author { font-style: normal; margin-top: 1rem; font-weight: 600; color: #ffffff; text-align: right; }
+    .testimonial-card p { color: var(--text-color-light); }
+    .testimonial-card .author { font-style: normal; margin-top: 1rem; font-weight: 600; color: var(--primary-text-color); text-align: right; }
     .faq-item {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--card-bg-color);
       margin-bottom: 1rem;
       padding: 1.5rem;
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: var(--default-border-radius);
+      border: 1px solid var(--card-border-color);
       text-align: left;
     }
     .faq-item summary {
       font-weight: 600;
       cursor: pointer;
       font-size: 1.1rem;
-      color: #ffffff;
+      color: var(--primary-text-color);
     }
     .faq-item p {
       margin-top: 0.75rem;
-      color: #cccccc;
+      color: var(--secondary-text-color);
       line-height: 1.6;
     }
     .info-column { /* New style for explicit columns */
@@ -408,12 +491,21 @@
       flex-direction: column;
       gap: 3rem; /* Maintain the same gap as the grid had between rows */
     }
+    
+    .about-content {
+      max-width: 800px;
+      margin: 0 auto 2rem auto; /* Center content and add space below */
+      text-align: center; /* Align text to the center */
+      line-height: 1.7;
+      color: var(--secondary-text-color);
+    }
+ 
 
     footer {
       padding: 2rem;
       text-align: center;
       font-size: 0.9rem;
-      color: #aaaaaa;
+      color: var(--text-color-muted);
     }
 
     @media (max-width: 900px) {
@@ -444,22 +536,47 @@
 
   <!-- Header -->
   <header>
+    <nav class="main-nav">
+      <a href="#vision">Our Vision</a>
+      <a href="#about-us">About Us</a>
+      <a href="#demo">Why Us</a>
+      <a href="#how-it-works-section">How It Works</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
     <h1>Nullbyte AI</h1>
     <p>The future of AI-driven development, simplified.</p>
-    <p style="margin-top: 1rem; font-size: 1rem; color: #b0b0b0;">Connect with innovators, get support, and help shape our platform!</p>
+    <p style="margin-top: 1rem; font-size: 1rem; color: var(--secondary-text-color);">Connect with innovators, get support, and help shape our platform!</p>
 
     <div class="buttons">
-      <a href="https://nullbyteai.streamlit.app/" class="btn btn-try" target="_blank">Try Now</a>
-      <a href="https://discord.gg/ACTUAL_DISCORD_LINK" class="btn btn-try" target="_blank">Join Community</a> <!-- TODO: Update Discord Link -->
+      <a href="https://nullbyteai.streamlit.app/" class="btn btn-try" target="_blank" rel="noopener noreferrer" aria-label="Try Now (opens in new tab)">Try Now</a>
+      <a href="https://discord.gg/ACTUAL_DISCORD_LINK" class="btn btn-try" target="_blank" rel="noopener noreferrer" aria-label="Join our Community on Discord (opens in new tab)">Join Community</a> <!-- TODO: Update Discord Link -->
     </div>
   </header>
 
   <!-- Our Vision Section -->
   <section class="section" id="vision" style="padding-top: 2rem; padding-bottom: 2rem;"> <!-- Reduced padding for a concise section -->
-    <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: #e0e0e0;">Our Vision</h2>
-    <p style="font-size: 1.1rem; color: #cccccc; max-width: 800px; margin: 0 auto; line-height: 1.6;">
+    <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--text-color-light);">Our Vision</h2>
+    <p style="font-size: 1.1rem; color: var(--secondary-text-color); max-width: 800px; margin: 0 auto; line-height: 1.6;">
       At Nullbyte AI, we envision a world where data is an enabler, not a bottleneck. We're committed to empowering developers and businesses with ethical, intelligent, and accessible synthetic data solutions, fostering innovation while championing privacy and fairness in the AI landscape, starting with a deep understanding of India's unique needs.
     </p>
+  </section>
+
+  <!-- About Us Section -->
+  <section class="section" id="about-us">
+    <h2 style="font-size: 2rem; margin-bottom: 2rem;">About Nullbyte AI</h2>
+    <div class="about-content">
+      <p style="margin-bottom: 1.5rem;">
+        Nullbyte AI was founded by a passionate group of AI enthusiasts, data scientists, and software engineers who saw a critical need for better, more ethical data in the development lifecycle. We believe that the future of AI innovation, especially in diverse markets like India, depends on accessible tools that prioritize privacy, fairness, and developer productivity.
+      </p>
+      <p style="margin-bottom: 1.5rem;">
+        Our mission extends beyond just providing synthetic data. We aim to cultivate a community where developers can learn, share, and build responsible AI solutions. We're driven by the challenge of solving complex data problems and are committed to transparency and continuous improvement.
+      </p>
+      <!-- Optional: Team Member Snippets (if you want to highlight a few key people) -->
+      <!-- <h3 style="font-size: 1.5rem; margin-top: 2rem; margin-bottom: 1rem; color: var(--text-color-light); text-align: center;">Meet the Core Team (Conceptual)</h3> -->
+      <!-- You could add small cards or blurbs for team members here if desired -->
+    </div>
   </section>
 
 
@@ -495,7 +612,7 @@
   </section>
 
   <!-- How It Works & Who's It For Section -->
-  <section class="section">
+  <section class="section" id="how-it-works-section"> <!-- Added ID for navigation -->
     <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">How It Works & Who's It For</h2>
     <div class="info-sections">
       <!-- Left Column -->
@@ -508,6 +625,19 @@
               <div class="data-layer layer-1"><span class="layer-label">Raw Input Data</span></div>
               <div class="data-layer layer-2"><span class="layer-label">AI Synthesis Core</span></div>
               <div class="data-layer layer-3"><span class="layer-label">Refined Output</span></div>
+
+              <!-- Data Flow Particles: Layer 1 to Layer 2 -->
+              <div class="flow-container flow-1-to-2">
+                <span class="data-flow-particle"></span><span class="data-flow-particle"></span>
+                <span class="data-flow-particle"></span><span class="data-flow-particle"></span>
+                <span class="data-flow-particle"></span><span class="data-flow-particle"></span>
+              </div>
+              <!-- Data Flow Particles: Layer 2 to Layer 3 -->
+              <div class="flow-container flow-2-to-3">
+                <span class="data-flow-particle"></span><span class="data-flow-particle"></span>
+                <span class="data-flow-particle"></span><span class="data-flow-particle"></span>
+                <span class="data-flow-particle"></span><span class="data-flow-particle"></span>
+              </div>
             </div>
             <!-- 
               This is a CSS-based 3D effect representing data layers.
@@ -546,14 +676,14 @@
     </div>
     <!-- Repeated CTA -->
     <div class="buttons" style="margin-top: 4rem;">
-      <a href="https://nullbyteai.streamlit.app/" class="btn btn-try" target="_blank">Try Nullbyte AI Now</a>
+      <a href="https://nullbyteai.streamlit.app/" class="btn btn-try" target="_blank" rel="noopener noreferrer" aria-label="Try Nullbyte AI Now (opens in new tab)">Try Nullbyte AI Now</a>
     </div>
   </section>
 
   <!-- Roadmap Highlights Section -->
   <section class="section" id="roadmap">
     <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">What's Next: Roadmap Highlights</h2>
-    <p style="color: #cccccc; margin-bottom: 3rem; max-width: 700px; margin-left: auto; margin-right: auto;">
+    <p style="color: var(--secondary-text-color); margin-bottom: 3rem; max-width: 700px; margin-left: auto; margin-right: auto;">
       We're constantly innovating. Here's a sneak peek at what we're building:
     </p>
     <div class="features"> <!-- Reusing .features for grid layout -->
@@ -575,24 +705,24 @@
   <!-- Pricing Section Placeholder -->
   <section class="section" id="pricing">
     <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">Plans & Pricing (Conceptual)</h2>
-    <p style="color: #cccccc; margin-bottom: 3rem; max-width: 700px; margin-left: auto; margin-right: auto;">
+    <p style="color: var(--secondary-text-color); margin-bottom: 3rem; max-width: 700px; margin-left: auto; margin-right: auto;">
       Choose a plan that fits your needs. We're working on flexible options for individuals, startups, and enterprises.
     </p>
     <div class="features"> <!-- Reusing .features for grid layout -->
       <div class="pricing-card feature-card"> <!-- Reusing .feature-card for base style -->
         <h3>Free Tier / Community</h3>
-        <p style="margin-top: 1rem; color: #e0e0e0;">Access core generation features, limited usage, community support. Perfect for exploration and small projects.</p>
-        <a href="https://nullbyteai.streamlit.app/" class="btn btn-try" style="margin-top: 2rem; display: inline-block;" target="_blank">Get Started Free</a>
+        <p style="margin-top: 1rem; color: var(--text-color-light);">Access core generation features, limited usage, community support. Perfect for exploration and small projects.</p>
+        <a href="https://nullbyteai.streamlit.app/" class="btn btn-try" style="margin-top: 2rem; display: inline-block;" target="_blank" rel="noopener noreferrer" aria-label="Get Started Free with Nullbyte AI (opens in new tab)">Get Started Free</a>
       </div>
       <div class="pricing-card feature-card">
         <h3>Pro / Startup</h3>
-        <p style="margin-top: 1rem; color: #e0e0e0;">Advanced features, higher limits, priority support, access to premium templates. Ideal for growing teams.</p>
-        <a href="#contact" class="btn btn-try" style="margin-top: 2rem; display: inline-block;">Learn More</a> <!-- Or link to a specific page/mailto -->
+        <p style="margin-top: 1rem; color: var(--text-color-light);">Advanced features, higher limits, priority support, access to premium templates. Ideal for growing teams.</p>
+        <a href="#contact" class="btn btn-try" style="margin-top: 2rem; display: inline-block;">Learn More</a> <!-- TODO: Link to a contact section or page -->
       </div>
       <div class="pricing-card feature-card">
         <h3>Enterprise</h3>
-        <p style="margin-top: 1rem; color: #e0e0e0;">Custom solutions, dedicated support, federated learning options, on-premise deployment. Tailored for large organizations.</p>
-        <a href="mailto:sales@nullbyteai.com" class="btn btn-try" style="margin-top: 2rem; display: inline-block;">Contact Sales</a> <!-- Or link to a contact form -->
+        <p style="margin-top: 1rem; color: var(--text-color-light);">Custom solutions, dedicated support, federated learning options, on-premise deployment. Tailored for large organizations.</p>
+        <a href="mailto:sales@nullbyteai.com" class="btn btn-try" style="margin-top: 2rem; display: inline-block;">Contact Sales</a>
       </div>
     </div>
   </section>
@@ -628,6 +758,10 @@
   <!-- Footer -->
   <footer>
     © 2025 Nullbyte AI. All rights reserved.
+    <p style="margin-top: 0.5rem; font-size: 0.8rem;">
+      <a href="/privacy-policy.html" style="color: var(--text-color-muted); text-decoration: none; margin: 0 0.5rem;">Privacy Policy</a> |
+      <a href="/terms-of-service.html" style="color: var(--text-color-muted); text-decoration: none; margin: 0 0.5rem;">Terms of Service</a>
+    </p>
   </footer>
 
   <!-- Particle Config -->
@@ -654,5 +788,39 @@
     });
   </script>
 
+  <!-- Interactive Parallax for 3D Diagram -->
+  <script>
+    const visualPlaceholder = document.querySelector('.visual-placeholder');
+    const perspectiveWrapper = document.querySelector('.perspective-wrapper');
+
+    if (visualPlaceholder && perspectiveWrapper) {
+      const baseRotateX = 20; // Base rotation from CSS
+      const baseRotateY = -25; // Base rotation from CSS
+      const baseScale = 0.9;   // Base scale from CSS
+      const sensitivity = 5;   // Max degrees of tilt
+
+      visualPlaceholder.addEventListener('mousemove', (e) => {
+        const rect = visualPlaceholder.getBoundingClientRect();
+        const x = e.clientX - rect.left; // x position within the element.
+        const y = e.clientY - rect.top;  // y position within the element.
+
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+
+        const deltaX = (x - centerX) / centerX; // -1 to 1
+        const deltaY = (y - centerY) / centerY; // -1 to 1
+
+        const rotateY = baseRotateY - (deltaX * sensitivity);
+        const rotateX = baseRotateX + (deltaY * sensitivity);
+
+        perspectiveWrapper.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${baseScale})`;
+      });
+
+      visualPlaceholder.addEventListener('mouseleave', () => {
+        // Reset to default rotation and scale
+        perspectiveWrapper.style.transform = `rotateX(${baseRotateX}deg) rotateY(${baseRotateY}deg) scale(${baseScale})`;
+      });
+    }
+  </script>
 </body>
 </html>
