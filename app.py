@@ -145,7 +145,8 @@ if 'federated_generated_df_output' not in st.session_state:
 if 'marketplace_templates' not in st.session_state:
     st.session_state.marketplace_templates = [ # Pre-populate with some examples
         {"name": "Realistic E-commerce Transactions", "description": "Detailed e-commerce data with customer behavior.", "author": "CommunityUser1", "rating": 4.5, "downloads": 120, "discussions": 15, "trust_badge": "Verified"},
-        {"name": "Comprehensive Patient Health Records (Anonymized)", "description": "A rich dataset for healthcare analytics, PII faked.", "author": "HealthcareAI_Org", "rating": 4.8, "downloads": 250, "discussions": 30, "trust_badge": "Trusted Partner"},
+        {"name": "Indian Patient Health Records (Anonymized Demo)", "description": "A rich dataset for healthcare analytics in an Indian context, PII faked. Suitable for demonstrating healthcare data synthesis.", "author": "HealthcareAI_Org", "rating": 4.8, "downloads": 250, "discussions": 30, "trust_badge": "Trusted Partner"},
+        {"name": "Indian Fintech UPI Transactions (Simplified)", "description": "Simulated UPI transaction data for fintech analysis, including merchant details and transaction status. PII is faked.", "author": "FinSecureDev", "rating": 4.6, "downloads": 180, "discussions": 22, "trust_badge": "Verified"},
         {"name": "Simple IoT Sensor Data Stream", "description": "Basic sensor readings for IoT projects.", "author": "MakerPro", "rating": 4.0, "downloads": 80, "discussions": 5, "trust_badge": "Community Contributed"},
     ]
 if 'marketplace_new_template_name' not in st.session_state:
@@ -191,7 +192,7 @@ st.markdown(f"*Generate AI-ready, bias-checked, privacy-compliant synthetic data
 st.markdown("""
 <style>
 .highlight-box {
-    background-color: black; /* Or #000000 for pure black */
+    background-color: #0d1117; /* GitHub dark theme background */
     border-left: 5px solid #4e8098;
     padding: 15px;
     border-radius: 5px;
@@ -218,6 +219,74 @@ NullByte AI helps data scientists, researchers, solo entreprenuers and businesse
 with advanced bias detection and ethical compliance checks.
 </div>
 """, unsafe_allow_html=True)
+
+st.caption("""
+    ⚠️ **Disclaimer:** NullByte AI generates synthetic data. While it includes features for PII detection, masking, and bias checks,
+    users are solely responsible for ensuring that their use of the generated data complies with all applicable laws and regulations,
+    including data privacy laws like the DPDP Act (India), GDPR, CCPA, etc. The ethical AI scores and reports provided are
+    for guidance and illustrative purposes only and do not constitute legal advice. Always perform thorough validation for your specific use case.
+""", unsafe_allow_html=True)
+
+# --- Sidebar Guide ---
+def display_sidebar_guide():
+    st.sidebar.title("📘 NullByte AI Guide")
+    st.sidebar.markdown("Welcome to NullByte AI! Here's a quick guide to get you started:")
+
+    st.sidebar.subheader("1. Text-based Generation")
+    st.sidebar.markdown(
+        "- **Describe your data:** Use the main text input (e.g., '100 rows of customer data with name, email, and purchase_amount').\n"
+        "- **Focus & Language:** Select 'Indian Context' or 'Global/Random' and your preferred language for generated names, addresses, etc.\n"
+        "- **Reproducibility:** Check 'Use fixed random seed' for consistent datasets.\n"
+        "- **View & Download:** The generated data will appear below. You can edit column names, values, and download it.\n"
+        "- **Refine in Editor:** Click 'Send Inferred Schema to Smart Editor' to customize the auto-detected schema."
+    )
+
+    st.sidebar.subheader("2. Smart Schema Editor")
+    st.sidebar.markdown(
+        "- **Manage Tables:** Add, delete, or select tables to edit.\n"
+        "- **Load Templates:** Choose a pre-defined schema from the 'Load Schema Template' dropdown or from the 'Community Gallery' tab.\n"
+        "- **Define Fields:** For the active table, add fields, specify their 'Name', 'Type', and 'Constraint' (e.g., range for numbers, categories for text).\n"
+        "- **PII Handling:** Set a default PII strategy and override it per sensitive field (e.g., 'Masked', 'Redacted').\n"
+        "- **Relationships:** Define one-to-many relationships between tables using Primary Keys (PK) and Foreign Keys (FK).\n"
+        "- **Edge Cases:** Inject specific data patterns into a percentage of rows based on conditions.\n"
+        "- **Generate:** Set the number of root rows and click 'Generate Data from All Schemas'."
+    )
+
+    st.sidebar.subheader("3. File-based Generation")
+    st.sidebar.markdown(
+        "- **Upload:** Upload your CSV or XLSX file.\n"
+        "- **Choose Action:** \n"
+        "  - **Generate Synthetic Data:** Creates new synthetic rows based on your file's structure and appends them. PII-like columns are faked.\n"
+        "  - **Check Compliance:** Analyzes your original uploaded file for bias and PII.\n"
+        "- **Drift Analysis:** If you generate synthetic data, a drift analysis compares the synthetic part to your original data."
+    )
+
+    st.sidebar.subheader("4. Scenario Playground")
+    st.sidebar.markdown(
+        "- **Test Ideas:** Quickly design and test specific data scenarios or edge cases.\n"
+        "- **Select Template:** Choose a base schema.\n"
+        "- **Define Edge Cases:** Specify conditions to inject into a percentage of the data.\n"
+        "- **Generate:** Create a small dataset to see the results."
+    )
+
+    st.sidebar.subheader("5. Community Gallery")
+    st.sidebar.markdown(
+        "- **Explore Schemas:** Browse various predefined schema templates.\n"
+        "- **Load to Editor:** Click 'Load ... into Smart Schema Editor' to use a template as a starting point in Tab 2."
+    )
+    
+    st.sidebar.subheader("🔬 Advanced Lab")
+    st.sidebar.markdown(
+        "- **Experimental Features:** Explore conceptual tools like AI-Powered Generation (GANs, VAEs, GPT), Differential Privacy, Quality Benchmarking, Federated Generation, and more.\n"
+        "- **Note:** These are currently placeholders for future development and illustrate advanced capabilities."
+    )
+
+    st.sidebar.markdown("---")
+    st.sidebar.info("💡 **Tip:** Use the 'Ethical AI Dashboard' in relevant tabs to check for bias and PII risks.")
+
+# Call the function to display the guide in the sidebar
+display_sidebar_guide()
+
 
 # Text Input for Dataset Description
 prompt = st.text_input("Describe the dataset you want (e.g., '10 rows of employee data with name, age, salary, email')")
@@ -255,9 +324,11 @@ use_fixed_seed = st.checkbox("Use fixed random seed for reproducible dataset")
 if use_fixed_seed:
     random.seed(42)
     Faker.seed(42)
+    np.random.seed(42) # Add this for NumPy
 else:
     random.seed(None)
     Faker.seed(None)
+    np.random.seed(None) # Add this for NumPy
 
 # Initialize Faker based on the selected focus and locale
 try:
@@ -2203,6 +2274,34 @@ def generate_explainability_pdf(generation_context_info, generated_dfs_info):
     pdf.set_font("Arial", size=10)
     pdf.multi_cell(0, 5, "PII Handling: Sensitive data types (e.g., names, emails, phone numbers, IDs) are generated using realistic but fake values via the Faker library, or processed according to the specified PII handling strategy (Masked, Redacted, Scrambled).")
     pdf.multi_cell(0, 5, "Core Engine: Data generation leverages Python libraries including Faker (for realistic fake data), Pandas (for data manipulation), and NumPy/random (for numerical and choice-based generation).")
+
+    # Add DPDP specific note
+    dpdp_fields_handled_notes = []
+    if generation_context_info.get('method') == "Text Prompt" and st.session_state.get('inferred_schema_from_prompt'):
+        # For prompt-based, the schema is a single list of field dicts
+        for field in st.session_state.get('inferred_schema_from_prompt', []):
+            if is_dpdp_pii(field['name']):
+                # For prompt-based, PII strategy is global initially
+                strategy = PII_HANDLING_STRATEGIES.get(st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake"), "N/A")
+                dpdp_fields_handled_notes.append(f"- Field '{field['name']}' (inferred from prompt) identified as DPDP PII and handled via default '{strategy}' strategy.")
+    elif generation_context_info.get('method') == "Smart Schema Editor" and st.session_state.get('table_schemas'):
+        for table_name, fields in st.session_state.get('table_schemas', {}).items():
+            for field in fields:
+                if is_dpdp_pii(field['name']):
+                    strategy = PII_HANDLING_STRATEGIES.get(field.get('pii_handling', st.session_state.get(DEFAULT_PII_STRATEGY_KEY, "realistic_fake")), "N/A")
+                    dpdp_fields_handled_notes.append(f"- Field '{field['name']}' (in table '{table_name}') identified as DPDP PII and handled via '{strategy}' strategy.")
+    elif generation_context_info.get('method') == "File-based Generation" and st.session_state.get('uploaded_df_for_schema') is not None:
+        original_df_columns = st.session_state.uploaded_df_for_schema.columns
+        for col_name in original_df_columns:
+            if is_dpdp_pii(col_name):
+                 dpdp_fields_handled_notes.append(f"- Field '{col_name}' (from uploaded file) identified as DPDP PII and handled by faking values during synthetic generation.")
+
+    if dpdp_fields_handled_notes:
+        pdf.set_font("Arial", "B", 9)
+        pdf.multi_cell(0, 5, "DPDP Compliance Note:")
+        pdf.set_font("Arial", size=9)
+        for note in dpdp_fields_handled_notes:
+            pdf.multi_cell(0, 5, f"  {note}")
     # Add more details here if you implement more sophisticated logging
     pdf.ln(3)
 
@@ -4158,10 +4257,20 @@ with tab1:
                     key="download_excel_prompt"
                 )
             with col3:
-                explain_context_prompt = {"method": "Text Prompt"}
+                explain_context_prompt = {
+                    "method": "Text Prompt",
+                    "prompt": st.session_state.get('last_processed_prompt_tab1', 'N/A')
+                }
                 explain_dfs_info_prompt = {
                     "PromptGeneratedTable": {"rows": st.session_state.prompt_generated_df.shape[0], "cols": st.session_state.prompt_generated_df.shape[1]}
                 }
+                # Add DP info to context if it was applied
+                if st.session_state.get('advanced_lab_selection') == "🛡️ Differential Privacy":
+                    explain_context_prompt['dp_applied'] = True
+                    explain_context_prompt['dp_epsilon'] = st.session_state.get('dp_epsilon', 'N/A')
+                    explain_context_prompt['dp_mechanism_numeric'] = st.session_state.get('dp_mechanism_numeric', 'N/A')
+                    explain_context_prompt['dp_mechanism_categorical'] = st.session_state.get('dp_mechanism_categorical', 'N/A')
+
                 explain_pdf_data_prompt = generate_explainability_pdf(explain_context_prompt, explain_dfs_info_prompt)
                 st.download_button(
                     label="Download Explainability Report",
@@ -4196,23 +4305,22 @@ with tab3:
 
     if uploaded_file:
         try:
-            # Consider Streamlit's server.maxUploadSize for a server-level limit.
-            # You could add an in-app check too, though maxUploadSize is often preferred.
-            # MAX_APP_FILE_SIZE = 50 * 1024 * 1024 # 50 MB
-            # if uploaded_file.size > MAX_APP_FILE_SIZE:
-            #     st.error(f"File is too large. Maximum allowed size is {MAX_APP_FILE_SIZE / (1024*1024)} MB.")
-            #     # Clear related session state if file is rejected
-            #     st.session_state.uploaded_df_for_schema = None
-            #     st.session_state.file_action_tab3 = None
-            #     st.session_state.newly_generated_df_tab3 = None
-            #     st.session_state.synthetic_df_from_file_tab3 = None
-            #     # return # Stop further processing in this tab
+            # File Size Check
+            MAX_APP_FILE_SIZE = 50 * 1024 * 1024 # 50 MB
+            if uploaded_file.size > MAX_APP_FILE_SIZE:
+                st.error(f"File is too large ({uploaded_file.size / (1024*1024):.1f} MB). Maximum allowed size is {MAX_APP_FILE_SIZE / (1024*1024):.1f} MB.")
+                # Clear related session state if file is rejected
+                st.session_state.uploaded_df_for_schema = None
+                st.session_state.file_action_tab3 = None
+                st.session_state.newly_generated_df_tab3 = None
+                st.session_state.synthetic_df_from_file_tab3 = None
+                st.session_state.uploaded_file_name_tab3 = None # Clear the filename
+                st.stop() # Stop further processing in this tab for this run
 
             if uploaded_file.name.endswith(".csv"):
                 df = pd.read_csv(uploaded_file)
             else:
                 df = pd.read_excel(uploaded_file)
-
         except pd.errors.ParserError as pe:
             st.error(f"Error parsing the file: {pe}. Please ensure the file is a valid CSV or Excel file.")
             df = None
@@ -4575,7 +4683,7 @@ with tab5:
                 st.session_state.newly_generated_df_tab3 = None
                 st.session_state.synthetic_df_from_file_tab3 = None
                 st.success(f"Template '{template_name}' loaded into table '{target_table_name_for_gallery_load}' in the Smart Schema Editor. Please navigate there to continue.")
-                # st.rerun() # Not strictly necessary here, success message guides user
+                st.rerun() # Rerun to switch context to Tab 2 if user is on Tab 5
 
 with tab_advanced_lab:
     st.header("🔬 Advanced Lab")
