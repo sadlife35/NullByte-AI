@@ -1,38 +1,34 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Nullbyte AI: AI-driven synthetic data generation for developers and businesses, focusing on privacy, ethics, and India-centric solutions.">
-  <!-- Add your favicon here - replace with your actual favicon path -->
-  <link rel="icon" type="image/png" href="images/favicon.png"> <!-- Example path -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Nullbyte AI: AI-driven synthetic data generation for developers and businesses">
   <title>Nullbyte AI</title>
-
-  <!-- Open Graph / Facebook -->
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://your-domain.com/"> <!-- Replace with your actual URL -->
-  <meta property="og:title" content="Nullbyte AI - The Future of AI-Driven Development">
-  <meta property="og:description" content="Empowering developers with ethical, intelligent, and accessible synthetic data solutions.">
-  <meta property="og:image" content="https://your-domain.com/images/og-image.png"> <!-- Replace with a compelling image URL -->
-
-  <!-- Google Fonts -->
+  
+  <!-- Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap" rel="stylesheet">
-
+  
   <!-- Particle.js -->
   <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
-
+  
+  <!-- Parse SDK -->
+  <script src="https://npmcdn.com/parse/dist/parse.min.js"></script>
+  
   <style>
     :root {
       --primary-text-color: #ffffff;
       --secondary-text-color: #cccccc;
-      --text-color-light: #e0e0e0; /* For slightly lighter secondary text */
-      --text-color-muted: #aaaaaa; /* For footer or very subtle text */
-      --accent-color-glow: #00c0ff; /* Primary accent for glows/links */
+      --text-color-light: #e0e0e0;
+      --text-color-muted: #aaaaaa;
+      --accent-color-glow: #00c0ff;
       --card-bg-color: rgba(255, 255, 255, 0.05);
       --card-border-color: rgba(255, 255, 255, 0.1);
-      --card-border-stronger-color: rgba(255, 255, 255, 0.2); /* For elements like pricing cards */
+      --card-border-stronger-color: rgba(255, 255, 255, 0.2);
       --default-border-radius: 8px;
       --card-border-radius: 16px;
+      --error-color: #ff4d4d;
+      --success-color: #00ff9d;
     }
 
     * {
@@ -49,7 +45,6 @@
       animation: gradientBG 15s ease infinite;
       overflow-x: hidden;
       position: relative;
-      /* scroll-behavior: smooth; /* Moved to html for better compatibility */
     }
 
     @keyframes gradientBG {
@@ -57,10 +52,10 @@
       50% { background-position: 100% 50%; }
       100% { background-position: 0% 50%; }
     }
+
     html {
       scroll-behavior: smooth;
     }
-
 
     #particles-js {
       position: fixed;
@@ -69,17 +64,257 @@
       z-index: -1;
     }
 
-    header {
-      padding: 2rem 2rem 2rem; /* Adjusted padding for nav */
+    /* Header with Auth Buttons */
+    .header-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.5rem 2rem;
+      position: relative;
+      z-index: 100;
+    }
+    
+    .logo {
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--primary-text-color);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .logo-icon {
+      color: var(--accent-color-glow);
+    }
+    
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      color: var(--text-color-light);
+    }
+    
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #00c0ff, #00ff9d);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+    }
+    
+    .auth-buttons {
+      display: flex;
+      gap: 1rem;
+    }
+    
+    .btn-auth {
+      padding: 0.7rem 1.5rem;
+      font-size: 0.9rem;
+      border-radius: var(--default-border-radius);
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      text-decoration: none;
       text-align: center;
+      border: none;
+    }
+    
+    .btn-login {
+      background: transparent;
+      border: 1px solid var(--secondary-text-color);
+      color: var(--primary-text-color);
+    }
+    
+    .btn-signup {
+      background: var(--accent-color-glow);
+      color: #000;
+      border: 1px solid var(--accent-color-glow);
+    }
+    
+    .btn-login:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    
+    .btn-signup:hover {
+      background: rgba(0, 192, 255, 0.8);
+      box-shadow: 0 0 10px rgba(0, 192, 255, 0.5);
+    }
+    
+    /* Auth Modal Styles */
+    .auth-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(5px);
+    }
+    
+    .auth-modal.active {
+      opacity: 1;
+      visibility: visible;
+    }
+    
+    .auth-card {
+      background: var(--card-bg-color);
+      backdrop-filter: blur(12px);
+      border-radius: var(--card-border-radius);
+      border: 1px solid var(--card-border-color);
+      width: 100%;
+      max-width: 400px;
+      padding: 2.5rem 2rem;
+      position: relative;
+      box-shadow: 0 0 30px rgba(0, 192, 255, 0.2);
+      animation: fadeIn 0.4s ease;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .close-auth {
+      position: absolute;
+      top: 1rem;
+      right: 1rem;
+      background: transparent;
+      border: none;
+      color: var(--primary-text-color);
+      font-size: 1.5rem;
+      cursor: pointer;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      transition: background 0.3s ease;
+    }
+    
+    .close-auth:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+    
+    .auth-form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .auth-form-label {
+      font-weight: 600;
+      color: var(--text-color-light);
+      font-size: 0.9rem;
+    }
+    
+    .auth-form-input {
+      background: rgba(10, 20, 30, 0.3);
+      border: 1px solid var(--card-border-color);
+      border-radius: var(--default-border-radius);
+      padding: 0.9rem 1rem;
+      color: var(--primary-text-color);
+      font-family: 'Manrope', sans-serif;
+      font-size: 1rem;
+      transition: all 0.3s ease;
+    }
+    
+    .auth-form-input:focus {
+      outline: none;
+      border-color: var(--accent-color-glow);
+      box-shadow: 0 0 0 3px rgba(0, 192, 255, 0.2);
+    }
+    
+    .password-wrapper {
+      position: relative;
+    }
+    
+    .password-toggle {
+      position: absolute;
+      right: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: var(--secondary-text-color);
+      cursor: pointer;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .password-toggle svg {
+      width: 18px;
+      height: 18px;
+    }
+    
+    .auth-switch {
+      text-align: center;
+      margin-top: 1.5rem;
+      color: var(--secondary-text-color);
+      font-size: 0.95rem;
+    }
+    
+    .auth-switch a {
+      color: var(--accent-color-glow);
+      text-decoration: none;
+      font-weight: 600;
+      margin-left: 0.25rem;
+      transition: all 0.3s ease;
+    }
+    
+    .auth-switch a:hover {
+      text-decoration: underline;
+    }
+    
+    .error-message {
+      color: var(--error-color);
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+      display: none;
+    }
+    
+    .success-message {
+      color: var(--success-color);
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+      display: none;
+    }
+    
+    /* Main Content */
+    header {
+      padding: 4rem 2rem 2rem;
+      text-align: center;
+      max-width: 800px;
+      margin: 0 auto;
     }
 
     .main-nav {
       display: flex;
       justify-content: center;
-      gap: 1.5rem; /* Spacing between nav items */
-      margin-bottom: 2.5rem; /* Space below the nav before the main heading */
-      flex-wrap: wrap; /* Allow nav items to wrap on smaller screens */
+      gap: 1.5rem;
+      margin-bottom: 2.5rem;
+      flex-wrap: wrap;
     }
 
     .main-nav a {
@@ -87,17 +322,17 @@
       text-decoration: none;
       font-weight: 600;
       font-size: 0.95rem;
-      padding: 0.5rem 0; /* Add some padding for easier clicking */
+      padding: 0.5rem 0;
       transition: color 0.3s ease, transform 0.3s ease;
-      position: relative; /* For the underline effect */
+      position: relative;
     }
 
-    .main-nav a::after { /* Subtle underline effect on hover/focus */
+    .main-nav a::after {
       content: '';
       position: absolute;
       width: 0;
       height: 2px;
-      bottom: -2px; /* Position underline slightly below text */
+      bottom: -2px;
       left: 50%;
       transform: translateX(-50%);
       background-color: var(--accent-color-glow);
@@ -105,9 +340,9 @@
     }
 
     .main-nav a:hover,
-    .main-nav a:focus { /* Ensure focus state is also styled */
+    .main-nav a:focus {
       color: var(--primary-text-color);
-      transform: translateY(-2px); /* Slight lift on hover */
+      transform: translateY(-2px);
     }
 
     .main-nav a:hover::after,
@@ -119,7 +354,7 @@
       font-size: 3rem;
       font-weight: 700;
       color: var(--primary-text-color);
-      margin-bottom: 0.5rem; /* Space between H1 and subtitle */
+      margin-bottom: 0.5rem;
     }
 
     .buttons {
@@ -131,7 +366,7 @@
     }
 
     .btn {
-      display: inline-block; /* Allow width/min-width and text-align to apply */
+      display: inline-block;
       padding: 0.9rem 2rem;
       font-size: 1rem;
       border: none;
@@ -140,8 +375,8 @@
       font-weight: 600;
       transition: all 0.3s ease;
       text-decoration: none;
-      min-width: 12rem; /* Set a minimum width for all buttons */
-      text-align: center; /* Center text within the button */
+      min-width: 12rem;
+      text-align: center;
     }
 
     .btn-try {
@@ -152,6 +387,17 @@
 
     .btn-try:hover {
       background-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .btn-primary {
+      background: var(--accent-color-glow);
+      color: #000;
+      border: 1px solid var(--accent-color-glow);
+    }
+    
+    .btn-primary:hover {
+      background: rgba(0, 192, 255, 0.8);
+      box-shadow: 0 0 10px rgba(0, 192, 255, 0.5);
     }
 
     .section {
@@ -184,7 +430,6 @@
       box-shadow: 0 10px 25px rgba(255, 255, 255, 0.1);
     }
 
-    /* New styles for How it Works & Who's it For section */
     .info-sections {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -208,21 +453,10 @@
       box-shadow: 0 12px 30px rgba(255, 255, 255, 0.12);
     }
 
-    .info-column > .info-card { /* Make info-cards within info-columns also able to grow */
-      flex-grow: 1;
-    }
-
-    #how-it-works.info-card { /* Target the "How It Works" card */
-      display: flex; /* Make it a flex container */
-      flex-direction: column; /* Stack its children vertically */
-    }
-
-    #whos-it-for.info-card { /* Target specifically the "Who's It For" card */
-      align-self: start; /* Align to the start of the grid cell if its content is shorter */
-    }
-
-    #key-technologies.info-card { /* Target specifically the "Key Technologies" card */
-      padding: 1.5rem 2rem; /* Keep reduced padding */
+    .info-column {
+      display: flex;
+      flex-direction: column;
+      gap: 3rem;
     }
 
     .info-card h3 {
@@ -240,280 +474,133 @@
       font-size: 1rem;
       line-height: 1.5;
     }
-    #how-it-works.info-card ul { /* Target the list within "How It Works" */
-      flex-grow: 1; /* Allow the list to take up remaining vertical space */
-    }
 
     .visual-placeholder {
-      background: rgba(10, 20, 30, 0.3); /* Dark, abstract background to let particles show through */
-      border: none; /* Removed border for a cleaner look */
-      border-radius: var(--card-border-radius); /* Consistent with card radius */
-      padding: 1rem; /* Adjusted padding */
-      margin-bottom: 1.5rem; /* Maintain existing bottom margin */
-      overflow: hidden; /* Ensure content corners are clipped if they have their own radius */
-      display: flex; /* For centering the 3D content */
+      background: rgba(10, 20, 30, 0.3);
+      border: none;
+      border-radius: var(--card-border-radius);
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      overflow: hidden;
+      display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 320px; /* Adjusted height for the new 3D effect */
+      min-height: 320px;
       position: relative;
-    }
-
-    .perspective-wrapper {
-      perspective: 1000px; /* Adjusted perspective for a bit more clarity */
-      width: 70%; /* Adjusted width of the 3D element */
-      height: 170px; /* Adjusted height of the 3D element */
-      position: relative;
-      transform-style: preserve-3d;
-      transform: rotateX(20deg) rotateY(-25deg) scale(0.9); /* Slight rotation for 3D perspective */
-    }
-
-    /* Original pulseGlow for outer layers */
-    @keyframes pulseGlow {
-      0%, 100% {
-        box-shadow:
-          /* Holographic edge - subtle inner highlight */
-          inset 0 0 2px rgba(150, 230, 255, 0.5),
-          inset 0 0 6px rgba(100, 220, 255, 0.3),
-          /* Main outer soft glow */
-          0 0 15px rgba(0, 191, 255, 0.35),
-          0 0 25px rgba(0, 150, 230, 0.25),
-          0 0 35px rgba(0, 120, 200, 0.15),
-          /* Soft depth shadow */
-          0px 4px 18px rgba(0, 50, 80, 0.2);
-        border-color: rgba(0, 191, 255, 0.5); /* Slightly more vibrant border */
-      }
-      50% {
-        box-shadow:
-          /* Holographic edge - brighter inner highlight */
-          inset 0 0 3px rgba(180, 240, 255, 0.8),
-          inset 0 0 8px rgba(120, 230, 255, 0.6),
-          /* Main outer soft glow - intensified */
-          0 0 25px rgba(0, 210, 255, 0.6),
-          0 0 40px rgba(0, 180, 255, 0.45),
-          0 0 55px rgba(0, 150, 240, 0.35),
-          /* Enhanced depth shadow */
-          0px 6px 22px rgba(0, 70, 100, 0.35);
-        border-color: rgba(0, 210, 255, 0.8); /* Brighter border for holographic effect */
-      }
-    }
-
-    /* More intense pulseGlow for the middle (processing) layer */
-    @keyframes pulseGlowIntense {
-      0%, 100% {
-        box-shadow:
-          inset 0 0 2px rgba(180, 245, 255, 0.6), 
-          inset 0 0 7px rgba(130, 235, 255, 0.4),
-          0 0 18px rgba(50, 220, 255, 0.55),
-          0 0 30px rgba(50, 200, 255, 0.45),
-          0 0 45px rgba(50, 180, 240, 0.35),
-          0px 5px 20px rgba(0, 60, 90, 0.25);
-        border-color: rgba(50, 220, 255, 0.7);
-      }
-      50% {
-        box-shadow:
-          inset 0 0 4px rgba(200, 250, 255, 0.9),
-          inset 0 0 10px rgba(150, 240, 255, 0.7),
-          0 0 30px rgba(80, 230, 255, 0.85),
-          0 0 50px rgba(80, 210, 255, 0.65),
-          0 0 70px rgba(80, 190, 255, 0.45),
-          0px 8px 28px rgba(0, 80, 120, 0.4);
-        border-color: rgba(100, 240, 255, 1); /* Very bright, almost solid border */
-      }
-    }
-
-    .data-layer {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      border-radius: var(--default-border-radius);
-      background: rgba(15, 40, 70, 0.35); /* Semi-transparent base for panels */
-      backdrop-filter: blur(10px); /* Frosted glass effect */
-      border: 1px solid rgba(0, 191, 255, 0.3); /* Cyan border */
-      /* Enhanced initial box-shadow for glow, holographic edge, and depth */
-      box-shadow:
-        /* Holographic edge - subtle inner highlight */
-        inset 0 0 2px rgba(150, 230, 255, 0.4),
-        inset 0 0 5px rgba(100, 220, 255, 0.2),
-        /* Main outer soft glow */
-        0 0 12px rgba(0, 191, 255, 0.25),
-        0 0 22px rgba(0, 150, 230, 0.15),
-        /* Subtle depth indication */
-        0px 3px 15px rgba(0, 40, 70, 0.15);
-      transform-style: preserve-3d; /* If layers themselves had children in 3D */
-      transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.4s ease, border-color 0.4s ease;
-      animation: pulseGlow 3s infinite ease-in-out; /* Add pulsing animation */
-    }
-
-    .data-layer .layer-label {
-      position: absolute;
-      bottom: 10px; /* Position at the bottom of the layer */
-      left: 50%;
-      transform: translateX(-50%) translateZ(5px); /* Center it and bring slightly forward */
-      color: rgba(255, 255, 255, 0.7);
-      font-size: 0.7rem;
-      font-weight: 600;
-      text-align: center;
-      width: 90%; /* Ensure it doesn't overflow too much */
-      pointer-events: none; /* So it doesn't interfere with hover on the layer itself */
-    }
-
-    .data-layer.layer-1 { /* Backmost layer - "Raw/Diverse Input" */
-      transform: translateZ(-70px); /* Bottom layer */
-      /* Slightly darker/muted tint for raw input */
-      background: linear-gradient(145deg, rgba(10, 30, 50, 0.4) 0%, rgba(0, 20, 40, 0.5) 100%);
-      animation-delay: -1s; /* Offset animation for variety */
-    }
-    .data-layer.layer-2 { /* Middle layer - "AI Processing Core" - more active */
-      transform: translateZ(0px); /* Middle layer */
-      /* Standard panel background, intense glow will make it pop */
-      background: linear-gradient(145deg, rgba(20, 50, 80, 0.45) 0%, rgba(10, 40, 70, 0.55) 100%);
-      animation: pulseGlowIntense 2.5s infinite ease-in-out; /* Use the more intense glow, slightly faster */
-    }
-    .data-layer.layer-3 { /* Frontmost layer - "Clean Synthesized Output" */
-      transform: translateZ(70px); /* Top layer */
-      /* Slightly brighter/cleaner tint for refined output */
-      background: linear-gradient(145deg, rgba(30, 70, 110, 0.4) 0%, rgba(20, 60, 100, 0.5) 100%);
-      animation-delay: -0.5s; /* Offset animation */
-    }
-
-    /* --- Data Flow Particles --- */
-    .flow-container {
-      position: absolute;
-      width: 60%; /* Width of the particle stream area */
-      height: 70px; /* Vertical travel distance for particles, matches inter-layer Z distance */
-      left: 20%; /* Center the stream horizontally */
-      top: 50%;  /* Center the container vertically within perspective-wrapper */
-      transform-style: preserve-3d;
-      pointer-events: none; /* So particles don't interfere with layer hover */
-    }
-
-    .flow-1-to-2 {
-      /* Position between layer 1 (Z:-70) and layer 2 (Z:0) */
-      transform: translateY(-50%) translateZ(-35px);
-    }
-
-    .flow-2-to-3 {
-      /* Position between layer 2 (Z:0) and layer 3 (Z:70) */
-      transform: translateY(-50%) translateZ(35px);
-    }
-
-    .data-flow-particle {
-      position: absolute;
-      width: 3px;
-      height: 3px;
-      background-color: #40e0d0; /* Bright turquoise */
-      border-radius: 50%;
-      box-shadow: 0 0 3px #40e0d0, 0 0 6px #40e0d0, 0 0 9px #00c0ff; /* Turquoise/cyan glow */
-      opacity: 0;
-      animation: flowParticleUp 2.2s infinite ease-in-out;
-    }
-
-    @keyframes flowParticleUp {
-      0%   { opacity: 0; transform: translate(0px, 35px) scale(0.5); } /* Start at bottom, small */
-      20%  { opacity: 0.8; transform: translate(2px, 20px) scale(0.8); } /* Fade in, move up and slightly right */
-      50%  { opacity: 0.8; transform: translate(-2px, 0px) scale(0.8); } /* Mid-point, slightly left */
-      80%  { opacity: 0.8; transform: translate(1px, -20px) scale(0.8); }/* Continue moving up, slightly right */
-      100% { opacity: 0; transform: translate(0px, -35px) scale(0.5); } /* Fade out at top, small */
-    }
-
-    /* Stagger particle animations and horizontal positions */
-    .data-flow-particle:nth-child(1) { left: 20%; animation-delay: 0s; }
-    .data-flow-particle:nth-child(2) { left: 40%; animation-delay: 0.3s; }
-    .data-flow-particle:nth-child(3) { left: 60%; animation-delay: 0.6s; }
-    .data-flow-particle:nth-child(4) { left: 80%; animation-delay: 0.9s; }
-    .data-flow-particle:nth-child(5) { left: 30%; animation-delay: 1.2s; } /* Offset for variety */
-    .data-flow-particle:nth-child(6) { left: 70%; animation-delay: 1.5s; } /* Offset for variety */
-
-    /* Slightly different appearance for particles in the second flow for visual distinction if desired */
-    .flow-2-to-3 .data-flow-particle {
-      /* background-color: #50fa7b; */ /* Example: Greenish for refined output flow */
-      /* box-shadow: 0 0 3px #50fa7b, 0 0 6px #50fa7b, 0 0 9px #00e060; */
-    }
-
-    .perspective-wrapper:hover .data-layer { /* Subtle shift on hover */
-      /* Enhanced glow on hover, incorporating holographic edge and depth */
-      box-shadow:
-        inset 0 0 3px rgba(180, 240, 255, 0.7), /* Brighter inner highlight */
-        inset 0 0 8px rgba(120, 230, 255, 0.5),  /* Softer brighter inner glow */
-        0 0 22px rgba(0, 210, 255, 0.55),       /* Main glow */
-        0 0 38px rgba(0, 180, 255, 0.40),      /* Wider glow */
-        0 0 55px rgba(0, 150, 240, 0.30),     /* Farthest glow */
-        /* Slightly more pronounced depth shadow on hover */
-        0px 7px 25px rgba(0, 70, 100, 0.3);
-      animation-play-state: paused; /* Pause pulsing on hover to focus on transform */
-    }
-    /* Specific hover transforms to make them fan out a bit more */
-    .perspective-wrapper:hover .data-layer.layer-1 {
-      transform: translateZ(-90px) translateY(-10px) scale(1.03); /* Push further back and slightly up */
-    }
-    .perspective-wrapper:hover .data-layer.layer-2 {
-      transform: translateZ(0px) scale(1.05); /* Middle one more prominent */
-    }
-    .perspective-wrapper:hover .data-layer.layer-3 {
-      transform: translateZ(90px) translateY(10px) scale(1.03); /* Bring further forward and slightly down */
-    }
-    .pricing-card { /* Basic styling for pricing cards */
-      border: 1px solid var(--card-border-stronger-color);
-      /* padding: 2rem; */ /* Inherits from .feature-card */
-      /* border-radius: 12px; */ /* Inherits from .feature-card */
-    }
-    .testimonial-card {
-      background: var(--card-bg-color);
-      backdrop-filter: blur(10px);
-      padding: 1.5rem;
-      border-radius: var(--card-border-radius);
-      border: 1px solid var(--card-border-color);
-      font-style: italic;
-    }
-    .testimonial-card p { color: var(--text-color-light); }
-    .testimonial-card .author { font-style: normal; margin-top: 1rem; font-weight: 600; color: var(--primary-text-color); text-align: right; }
-    .faq-item {
-      background: var(--card-bg-color);
-      margin-bottom: 1rem;
-      padding: 1.5rem;
-      border-radius: var(--default-border-radius);
-      border: 1px solid var(--card-border-color);
-      text-align: left;
-    }
-    .faq-item summary {
-      font-weight: 600;
-      cursor: pointer;
-      font-size: 1.1rem;
-      color: var(--primary-text-color);
-    }
-    .faq-item p {
-      margin-top: 0.75rem;
-      color: var(--secondary-text-color);
-      line-height: 1.6;
-    }
-    .info-column { /* New style for explicit columns */
-      display: flex;
-      flex-direction: column;
-      gap: 3rem; /* Maintain the same gap as the grid had between rows */
     }
     
-    .about-content {
-      max-width: 800px;
-      margin: 0 auto 2rem auto; /* Center content and add space below */
-      text-align: center; /* Align text to the center */
-      line-height: 1.7;
-      color: var(--secondary-text-color);
+    .pricing-card {
+      background: rgba(0, 192, 255, 0.1);
+      border: 1px solid rgba(0, 192, 255, 0.2);
     }
- 
-
-    footer {
+    
+    .pricing-card .btn {
+      background: var(--accent-color-glow);
+      color: #000;
+    }
+    
+    .pricing-card.feature-card:hover {
+      transform: scale(1.03);
+      box-shadow: 0 0 30px rgba(0, 192, 255, 0.2);
+    }
+    
+    .dashboard-card {
+      background: var(--card-bg-color);
+      backdrop-filter: blur(12px);
       padding: 2rem;
+      border-radius: var(--card-border-radius);
+      border: 1px solid var(--card-border-color);
       text-align: center;
+      max-width: 600px;
+      margin: 2rem auto;
+    }
+    
+    .dashboard-card h2 {
+      margin-bottom: 1.5rem;
+      color: var(--accent-color-glow);
+    }
+    
+    .dashboard-stats {
+      display: flex;
+      justify-content: space-around;
+      margin: 2rem 0;
+    }
+    
+    .stat-item {
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--accent-color-glow);
+      margin-bottom: 0.5rem;
+    }
+    
+    .stat-label {
+      color: var(--secondary-text-color);
       font-size: 0.9rem;
-      color: var(--text-color-muted);
+    }
+    
+    .action-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+    
+    .action-card {
+      background: rgba(0, 192, 255, 0.05);
+      border: 1px solid rgba(0, 192, 255, 0.1);
+      border-radius: var(--default-border-radius);
+      padding: 1.5rem;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    
+    .action-card:hover {
+      background: rgba(0, 192, 255, 0.1);
+      transform: translateY(-5px);
+    }
+    
+    .action-card h3 {
+      margin-bottom: 1rem;
+      color: var(--accent-color-glow);
     }
 
+    /* Responsive adjustments */
     @media (max-width: 900px) {
       .info-sections {
         grid-template-columns: 1fr;
       }
-      .info-column { /* Stack columns on smaller screens */
-        gap: 3rem; /* Or adjust as needed for single column layout */
+      .info-column {
+        gap: 3rem;
+      }
+      
+      .dashboard-stats {
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .header-container {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem;
+      }
+      
+      .auth-buttons {
+        width: 100%;
+        justify-content: center;
+      }
+      
+      header h1 {
+        font-size: 2.5rem;
+      }
+      
+      .btn-auth {
+        width: 45%;
       }
     }
 
@@ -524,7 +611,11 @@
 
       .btn {
         width: 100%;
-        text-align: center;
+      }
+      
+      .auth-card {
+        padding: 1.5rem;
+        margin: 1rem;
       }
     }
   </style>
@@ -534,7 +625,119 @@
   <!-- Particle Background -->
   <div id="particles-js"></div>
 
-  <!-- Header -->
+  <!-- Header with Auth Buttons -->
+  <div class="header-container">
+    <a href="#" class="logo">
+      <span class="logo-icon">⚡</span>
+      <span>Nullbyte AI</span>
+    </a>
+    
+    <div id="user-section" style="display: none;">
+      <div class="user-info">
+        <span id="username-display"></span>
+        <div class="user-avatar" id="user-avatar"></div>
+        <button class="btn-auth btn-login" id="logout-btn">Logout</button>
+      </div>
+    </div>
+    
+    <div class="auth-buttons" id="auth-buttons">
+      <button class="btn-auth btn-login" id="show-login">Login</button>
+      <button class="btn-auth btn-signup" id="show-signup">Sign Up</button>
+    </div>
+  </div>
+  
+  <!-- Auth Modals -->
+  <div class="auth-modal" id="login-modal">
+    <div class="auth-card">
+      <button class="close-auth">&times;</button>
+      <h2 style="text-align: center; margin-bottom: 0.5rem;">Login to Nullbyte AI</h2>
+      <p style="text-align: center; color: var(--secondary-text-color); margin-bottom: 1.5rem;">Access your AI-powered data generation tools</p>
+      
+      <form class="auth-form" id="login-form">
+        <div class="auth-form-group">
+          <label class="auth-form-label" for="login-email">Email address</label>
+          <input type="email" id="login-email" class="auth-form-input" placeholder="your@email.com" required>
+          <div class="error-message" id="login-email-error">Please enter a valid email</div>
+        </div>
+        
+        <div class="auth-form-group">
+          <label class="auth-form-label" for="login-password">Password</label>
+          <div class="password-wrapper">
+            <input type="password" id="login-password" class="auth-form-input" placeholder="••••••••" required>
+            <button type="button" class="password-toggle" id="login-password-toggle">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </div>
+          <div class="error-message" id="login-password-error">Password is required</div>
+        </div>
+        
+        <div style="text-align: right; margin-top: -0.5rem;">
+          <a href="#" id="forgot-password" style="color: var(--accent-color-glow); text-decoration: none; font-size: 0.9rem;">Forgot password?</a>
+        </div>
+        
+        <button type="submit" class="btn-auth btn-signup" style="margin-top: 1rem;">Login</button>
+      </form>
+      
+      <div class="auth-switch">
+        <p>Don't have an account? <a href="#" id="switch-to-signup">Sign up</a></p>
+      </div>
+    </div>
+  </div>
+  
+  <div class="auth-modal" id="signup-modal">
+    <div class="auth-card">
+      <button class="close-auth">&times;</button>
+      <h2 style="text-align: center; margin-bottom: 0.5rem;">Create Account</h2>
+      <p style="text-align: center; color: var(--secondary-text-color); margin-bottom: 1.5rem;">Join our AI data generation platform</p>
+      
+      <form class="auth-form" id="signup-form">
+        <div class="auth-form-group">
+          <label class="auth-form-label" for="signup-email">Email address</label>
+          <input type="email" id="signup-email" class="auth-form-input" placeholder="your@email.com" required>
+          <div class="error-message" id="signup-email-error">Please enter a valid email</div>
+        </div>
+        
+        <div class="auth-form-group">
+          <label class="auth-form-label" for="signup-password">Password</label>
+          <div class="password-wrapper">
+            <input type="password" id="signup-password" class="auth-form-input" placeholder="••••••••" required>
+            <button type="button" class="password-toggle" id="signup-password-toggle">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </div>
+          <div class="error-message" id="signup-password-error">Password must be at least 6 characters</div>
+        </div>
+        
+        <div class="auth-form-group">
+          <label class="auth-form-label" for="signup-confirm">Confirm Password</label>
+          <div class="password-wrapper">
+            <input type="password" id="signup-confirm" class="auth-form-input" placeholder="••••••••" required>
+            <button type="button" class="password-toggle" id="signup-confirm-toggle">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </div>
+          <div class="error-message" id="signup-confirm-error">Passwords do not match</div>
+        </div>
+        
+        <button type="submit" class="btn-auth btn-signup" style="margin-top: 1rem;">Create Account</button>
+      </form>
+      
+      <div class="auth-switch">
+        <p>Already have an account? <a href="#" id="switch-to-login">Login</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
   <header>
     <nav class="main-nav">
       <a href="#vision">Our Vision</a>
@@ -546,22 +749,68 @@
       <a href="#feedback">Feedback</a>
       <a href="#faq">FAQ</a>
     </nav>
-    <h1>Nullbyte AI</h1>
+    <h1>Empowering Innovation with Synthetic Data</h1>
     <p>The future of AI-driven development, simplified.</p>
     <p style="margin-top: 1rem; font-size: 1rem; color: var(--secondary-text-color);">Connect with innovators, get support, and help shape our platform!</p>
 
     <div class="buttons">
       <a href="https://nullbyteai.streamlit.app/" class="btn btn-try" target="_blank" rel="noopener noreferrer" aria-label="Try Now (opens in new tab)">Try Now</a>
-      <a href="https://discord.gg/ACTUAL_DISCORD_LINK" class="btn btn-try" target="_blank" rel="noopener noreferrer" aria-label="Join our Community on Discord (opens in new tab)">Join Community</a> <!-- TODO: Update Discord Link -->
+      <a href="#" class="btn btn-try" target="_blank" rel="noopener noreferrer" aria-label="Join our Community on Discord (opens in new tab)">Join Community</a>
     </div>
   </header>
 
   <!-- Our Vision Section -->
-  <section class="section" id="vision" style="padding-top: 2rem; padding-bottom: 2rem;"> <!-- Reduced padding for a concise section -->
+  <section class="section" id="vision" style="padding-top: 2rem; padding-bottom: 2rem;">
     <h2 style="font-size: 1.8rem; margin-bottom: 1rem; color: var(--text-color-light);">Our Vision</h2>
     <p style="font-size: 1.1rem; color: var(--secondary-text-color); max-width: 800px; margin: 0 auto; line-height: 1.6;">
       At Nullbyte AI, we envision a world where data is an enabler, not a bottleneck. We're committed to empowering developers and businesses with ethical, intelligent, and accessible synthetic data solutions, fostering innovation while championing privacy and fairness in the AI landscape, starting with a deep understanding of India's unique needs.
     </p>
+  </section>
+
+  <!-- Dashboard (Visible only when logged in) -->
+  <section class="section" id="dashboard" style="display: none;">
+    <h2 style="font-size: 2rem; margin-bottom: 2rem;">Your Dashboard</h2>
+    
+    <div class="dashboard-card">
+      <h2>Welcome, <span id="dashboard-username"></span>!</h2>
+      <p style="color: var(--secondary-text-color); margin-bottom: 1.5rem;">You're now part of the AI data revolution</p>
+      
+      <div class="dashboard-stats">
+        <div class="stat-item">
+          <div class="stat-value">12</div>
+          <div class="stat-label">Datasets Generated</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">3</div>
+          <div class="stat-label">Active Projects</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">98%</div>
+          <div class="stat-label">Accuracy Rate</div>
+        </div>
+      </div>
+      
+      <div class="action-grid">
+        <div class="action-card">
+          <h3>Create Dataset</h3>
+          <p>Generate new synthetic data with AI</p>
+        </div>
+        <div class="action-card">
+          <h3>Manage Projects</h3>
+          <p>View and organize your data projects</p>
+        </div>
+        <div class="action-card">
+          <h3>API Settings</h3>
+          <p>Configure your API access keys</p>
+        </div>
+        <div class="action-card">
+          <h3>Usage Reports</h3>
+          <p>View your data generation history</p>
+        </div>
+      </div>
+      
+      <button class="btn btn-primary" style="margin-top: 2rem;">Go to Data Studio</button>
+    </div>
   </section>
 
   <!-- About Us Section -->
@@ -574,12 +823,8 @@
       <p style="margin-bottom: 1.5rem;">
         Our mission extends beyond just providing synthetic data. We aim to cultivate a community where developers can learn, share, and build responsible AI solutions. We're driven by the challenge of solving complex data problems and are committed to transparency and continuous improvement.
       </p>
-      <!-- Optional: Team Member Snippets (if you want to highlight a few key people) -->
-      <!-- <h3 style="font-size: 1.5rem; margin-top: 2rem; margin-bottom: 1rem; color: var(--text-color-light); text-align: center;">Meet the Core Team (Conceptual)</h3> -->
-      <!-- You could add small cards or blurbs for team members here if desired -->
     </div>
   </section>
-
 
   <!-- Features Section -->
   <section class="section" id="demo">
@@ -613,37 +858,21 @@
   </section>
 
   <!-- How It Works & Who's It For Section -->
-  <section class="section" id="how-it-works-section"> <!-- Added ID for navigation -->
+  <section class="section" id="how-it-works-section">
     <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">How It Works & Who's It For</h2>
     <div class="info-sections">
       <!-- Left Column -->
       <div class="info-column">
         <div class="info-card" id="how-it-works">
           <h3>Streamlined Data Synthesis</h3>
-          <!-- CSS 3D Design Placeholder -->
           <div class="visual-placeholder">
-            <div class="perspective-wrapper">
-              <div class="data-layer layer-1"><span class="layer-label">Raw Input Data</span></div>
-              <div class="data-layer layer-2"><span class="layer-label">AI Synthesis Core</span></div>
-              <div class="data-layer layer-3"><span class="layer-label">Refined Output</span></div>
-
-              <!-- Data Flow Particles: Layer 1 to Layer 2 -->
-              <div class="flow-container flow-1-to-2">
-                <span class="data-flow-particle"></span><span class="data-flow-particle"></span>
-                <span class="data-flow-particle"></span><span class="data-flow-particle"></span>
-                <span class="data-flow-particle"></span><span class="data-flow-particle"></span>
-              </div>
-              <!-- Data Flow Particles: Layer 2 to Layer 3 -->
-              <div class="flow-container flow-2-to-3">
-                <span class="data-flow-particle"></span><span class="data-flow-particle"></span>
-                <span class="data-flow-particle"></span><span class="data-flow-particle"></span>
-                <span class="data-flow-particle"></span><span class="data-flow-particle"></span>
-              </div>
+            <div style="text-align: center; padding: 2rem;">
+              <svg width="150" height="150" viewBox="0 0 24 24" fill="none" stroke="#00c0ff" stroke-width="1.5">
+                <path d="M17 3.34a10 10 0 1 1-14.995 8.984L2 12l.005-.324A10 10 0 0 1 17 3.34z"></path>
+                <path d="M12 7v5l3 3"></path>
+              </svg>
+              <p style="margin-top: 1rem; color: var(--secondary-text-color);">AI-Powered Data Generation Process</p>
             </div>
-            <!-- 
-              This is a CSS-based 3D effect representing data layers.
-              For more complex 3D, consider embedding a 3D model (e.g., from Sketchfab) or using WebGL libraries like Three.js.
-            -->
           </div>
           <ul>
             <li><strong>Describe or Upload:</strong> Start with a text prompt, upload a file, or use our Smart Schema Editor.</li>
@@ -681,94 +910,36 @@
     </div>
   </section>
 
-  <!-- Roadmap Highlights Section -->
-  <section class="section" id="roadmap">
-    <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">What's Next: Roadmap Highlights</h2>
-    <p style="color: var(--secondary-text-color); margin-bottom: 3rem; max-width: 700px; margin-left: auto; margin-right: auto;">
-      We're constantly innovating. Here's a sneak peek at what we're building:
-    </p>
-    <div class="features"> <!-- Reusing .features for grid layout -->
-      <div class="feature-card"> <!-- Reusing .feature-card for styling -->
-        <h3>🤖 Advanced Deep Generative Models</h3>
-        <p>Implementing state-of-the-art GANs and VAEs for even more realistic and complex data synthesis.</p>
-      </div>
-      <div class="feature-card">
-        <h3>🔗 Enhanced Integrations & API</h3>
-        <p>Seamless connections with popular data warehouses, MLOps platforms, and a robust API for programmatic access.</p>
-      </div>
-      <div class="feature-card">
-        <h3>🌍 Expanded Language & Domain Support</h3>
-        <p>Broadening our India-specific language capabilities and adding specialized generators for more industries.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Pricing Section Placeholder -->
+  <!-- Pricing Section -->
   <section class="section" id="pricing">
-    <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">Plans & Pricing (Conceptual)</h2>
+    <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">Plans & Pricing</h2>
     <p style="color: var(--secondary-text-color); margin-bottom: 3rem; max-width: 700px; margin-left: auto; margin-right: auto;">
-      Choose a plan that fits your needs. We're working on flexible options for individuals, startups, and enterprises.
+      Choose a plan that fits your needs. Flexible options for individuals, startups, and enterprises.
     </p>
-    <div class="features"> <!-- Reusing .features for grid layout -->
-      <div class="pricing-card feature-card"> <!-- Reusing .feature-card for base style -->
+    <div class="features">
+      <div class="pricing-card feature-card">
         <h3>Free Tier / Community</h3>
         <p style="margin-top: 1rem; color: var(--text-color-light);">Access core generation features, limited usage, community support. Perfect for exploration and small projects.</p>
-        <a href="https://nullbyteai.streamlit.app/" class="btn btn-try" style="margin-top: 2rem; display: inline-block;" target="_blank" rel="noopener noreferrer" aria-label="Get Started Free with Nullbyte AI (opens in new tab)">Get Started Free</a>
+        <p style="font-size: 2rem; font-weight: 700; margin: 1.5rem 0; color: var(--accent-color-glow);">$0<span style="font-size: 1rem; color: var(--secondary-text-color);">/month</span></p>
+        <a href="https://nullbyteai.streamlit.app/" class="btn" style="margin-top: 1rem; display: inline-block;" target="_blank" rel="noopener noreferrer" aria-label="Get Started Free with Nullbyte AI (opens in new tab)">Get Started Free</a>
       </div>
       <div class="pricing-card feature-card">
         <h3>Pro / Startup</h3>
         <p style="margin-top: 1rem; color: var(--text-color-light);">Advanced features, higher limits, priority support, access to premium templates. Ideal for growing teams.</p>
-        <a href="#contact" class="btn btn-try" style="margin-top: 2rem; display: inline-block;">Learn More</a> <!-- TODO: Link to a contact section or page -->
+        <p style="font-size: 2rem; font-weight: 700; margin: 1.5rem 0; color: var(--accent-color-glow);">$49<span style="font-size: 1rem; color: var(--secondary-text-color);">/month</span></p>
+        <a href="#" class="btn" style="margin-top: 1rem; display: inline-block;">Upgrade Now</a>
       </div>
       <div class="pricing-card feature-card">
         <h3>Enterprise</h3>
         <p style="margin-top: 1rem; color: var(--text-color-light);">Custom solutions, dedicated support, federated learning options, on-premise deployment. Tailored for large organizations.</p>
-        <a href="mailto:sales@nullbyteai.com" class="btn btn-try" style="margin-top: 2rem; display: inline-block;">Contact Sales</a>
+        <p style="font-size: 2rem; font-weight: 700; margin: 1.5rem 0; color: var(--accent-color-glow);">Custom</p>
+        <a href="mailto:sales@nullbyteai.com" class="btn" style="margin-top: 1rem; display: inline-block;">Contact Sales</a>
       </div>
     </div>
   </section>
 
-  <!-- FAQ Section -->
-  <section class="section" id="faq">
-    <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">Frequently Asked Questions</h2>
-    <div style="max-width: 800px; margin: 0 auto;">
-      <details class="faq-item">
-        <summary>What kind of data can I generate with Nullbyte AI?</summary>
-        <p>Nullbyte AI can generate a wide range of structured and semi-structured data, from simple tabular datasets to complex multi-table relational schemas. You can define data types, relationships, and even inject specific edge cases based on text prompts or by uploading existing schema information.</p>
-      </details>
-      <details class="faq-item">
-        <summary>How does Nullbyte AI handle data privacy and compliance?</summary>
-        <p>Privacy is at our core. We offer advanced PII (Personally Identifiable Information) handling, with a specific focus on India's DPDP Act. Our roadmap includes Differential Privacy for even stronger guarantees. We also provide tools for bias detection and ethical AI scorecards.</p>
-      </details>
-      <details class="faq-item">
-        <summary>Is there a free tier available?</summary>
-        <p>Yes, we plan to offer a Free Tier / Community plan that provides access to core generation features with some usage limits. It's perfect for exploring Nullbyte AI and for small projects. Check our conceptual pricing for more details.</p>
-      </details>
-      <details class="faq-item">
-        <summary>Who is Nullbyte AI for?</summary>
-        <p>Nullbyte AI is designed for solo developers, lean startup teams, enterprises, researchers, and data scientists who need high-quality, privacy-aware synthetic data to accelerate development, testing, and research without compromising on data quality or privacy.</p>
-      </details>
-      <details class="faq-item">
-        <summary>What makes Nullbyte AI different?</summary>
-        <p>Our key differentiators include a strong India-first approach with DPDP compliance and local language understanding, advanced out-of-the-box privacy and bias tools, a developer/startup-friendly workflow, and a vision for a community-driven platform with explainability at its heart.</p>
-      </details>
-    </div>
-  </section>
-
-  <!-- Feedback Section -->
-  <section class="section" id="feedback">
-    <h2 style="font-size: 2rem; margin-bottom: 2rem; text-align: center;">Share Your Feedback</h2>
-    <p style="color: var(--secondary-text-color); margin-bottom: 3rem; max-width: 700px; margin-left: auto; margin-right: auto; text-align: center;">
-      We highly value your opinion and insights! Your feedback helps us improve Nullbyte AI and tailor it to your needs. Please take a few moments to share your thoughts by clicking the button below.
-    </p>
-    <div class="buttons" style="margin-top: 1rem;"> <!-- Adjusted margin-top slightly -->
-      <a href="https://forms.gle/6L5G2Y7WGUxwc1Fn6" class="btn btn-try" target="_blank" rel="noopener noreferrer" aria-label="Provide Feedback via Google Form (opens in new tab)">Give Feedback</a>
-    </div>
-  </section>
-
-
   <!-- Footer -->
-  <footer>
+  <footer style="padding: 2rem; text-align: center; font-size: 0.9rem; color: var(--text-color-muted);">
     © 2025 Nullbyte AI. All rights reserved.
     <p style="margin-top: 0.5rem; font-size: 0.8rem;">
       <a href="/privacy-policy.html" style="color: var(--text-color-muted); text-decoration: none; margin: 0 0.5rem;">Privacy Policy</a> |
@@ -776,63 +947,297 @@
     </p>
   </footer>
 
-  <!-- Particle Config -->
   <script>
+    // Initialize Parse with your Back4App credentials
+    Parse.initialize("yL3TH5ocTvW588ixe4adOMizek8SX6bi8p3nFHpK", "C7Y30sAduGUNzgoLNzByFkSjITnRbYoWntxkCHTd");
+    Parse.serverURL = "https://parseapi.back4app.com/";
+    
+    // DOM Elements
+    const loginModal = document.getElementById('login-modal');
+    const signupModal = document.getElementById('signup-modal');
+    const showLogin = document.getElementById('show-login');
+    const showSignup = document.getElementById('show-signup');
+    const closeAuth = document.querySelectorAll('.close-auth');
+    const switchToSignup = document.getElementById('switch-to-signup');
+    const switchToLogin = document.getElementById('switch-to-login');
+    const authButtons = document.getElementById('auth-buttons');
+    const userSection = document.getElementById('user-section');
+    const usernameDisplay = document.getElementById('username-display');
+    const userAvatar = document.getElementById('user-avatar');
+    const logoutBtn = document.getElementById('logout-btn');
+    const dashboardSection = document.getElementById('dashboard');
+    const dashboardUsername = document.getElementById('dashboard-username');
+    
+    // Check if user is already logged in
+    function checkCurrentUser() {
+      const currentUser = Parse.User.current();
+      if (currentUser) {
+        // User is logged in
+        authButtons.style.display = 'none';
+        userSection.style.display = 'flex';
+        const email = currentUser.get('email') || currentUser.get('username');
+        const username = email.split('@')[0];
+        usernameDisplay.textContent = username;
+        userAvatar.textContent = username.charAt(0).toUpperCase();
+        dashboardSection.style.display = 'block';
+        dashboardUsername.textContent = username;
+      } else {
+        // No user logged in
+        authButtons.style.display = 'flex';
+        userSection.style.display = 'none';
+        dashboardSection.style.display = 'none';
+      }
+    }
+    
+    // Show modal function
+    function showModal(modal) {
+      document.querySelectorAll('.auth-modal').forEach(m => m.classList.remove('active'));
+      modal.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+    
+    // Hide all modals
+    function hideModals() {
+      document.querySelectorAll('.auth-modal').forEach(m => m.classList.remove('active'));
+      document.body.style.overflow = '';
+    }
+    
+    // Event Listeners
+    showLogin.addEventListener('click', (e) => {
+      e.preventDefault();
+      showModal(loginModal);
+    });
+    
+    showSignup.addEventListener('click', (e) => {
+      e.preventDefault();
+      showModal(signupModal);
+    });
+    
+    closeAuth.forEach(btn => {
+      btn.addEventListener('click', hideModals);
+    });
+    
+    switchToSignup.addEventListener('click', (e) => {
+      e.preventDefault();
+      hideModals();
+      showModal(signupModal);
+    });
+    
+    switchToLogin.addEventListener('click', (e) => {
+      e.preventDefault();
+      hideModals();
+      showModal(loginModal);
+    });
+    
+    // Close modal when clicking outside
+    window.addEventListener('click', (e) => {
+      if (e.target.classList.contains('auth-modal')) {
+        hideModals();
+      }
+    });
+    
+    // Password visibility toggle
+    document.querySelectorAll('.password-toggle').forEach(toggle => {
+      toggle.addEventListener('click', function() {
+        const input = this.closest('.password-wrapper').querySelector('input');
+        const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+        input.setAttribute('type', type);
+        
+        // Toggle eye icon
+        this.innerHTML = type === 'password' ? 
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>' :
+          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+      });
+    });
+    
+    // Login form submission
+    document.getElementById('login-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      
+      // Clear previous errors
+      document.querySelectorAll('.error-message').forEach(el => {
+        el.style.display = 'none';
+      });
+      
+      // Simple validation
+      let valid = true;
+      if (!validateEmail(email)) {
+        showError('login-email-error', 'Please enter a valid email');
+        valid = false;
+      }
+      
+      if (!password) {
+        showError('login-password-error', 'Password is required');
+        valid = false;
+      }
+      
+      if (!valid) return;
+      
+      try {
+        // Parse login
+        const user = await Parse.User.logIn(email, password);
+        hideModals();
+        checkCurrentUser();
+        showSuccess('Login successful! Welcome back.');
+      } catch (error) {
+        console.error('Login error:', error);
+        showError('login-password-error', error.message || 'Login failed. Please check your credentials.');
+      }
+    });
+    
+    // Signup form submission
+    document.getElementById('signup-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const email = document.getElementById('signup-email').value;
+      const password = document.getElementById('signup-password').value;
+      const confirm = document.getElementById('signup-confirm').value;
+      
+      // Clear previous errors
+      document.querySelectorAll('.error-message').forEach(el => {
+        el.style.display = 'none';
+      });
+      
+      // Validation
+      let valid = true;
+      if (!validateEmail(email)) {
+        showError('signup-email-error', 'Please enter a valid email');
+        valid = false;
+      }
+      
+      if (password.length < 6) {
+        showError('signup-password-error', 'Password must be at least 6 characters');
+        valid = false;
+      }
+      
+      if (password !== confirm) {
+        showError('signup-confirm-error', 'Passwords do not match');
+        valid = false;
+      }
+      
+      if (!valid) return;
+      
+      try {
+        // Parse signup
+        const user = new Parse.User();
+        user.set('username', email);
+        user.set('email', email);
+        user.set('password', password);
+        
+        await user.signUp();
+        hideModals();
+        checkCurrentUser();
+        showSuccess('Account created successfully! Welcome to Nullbyte AI.');
+      } catch (error) {
+        console.error('Signup error:', error);
+        showError('signup-email-error', error.message || 'Signup failed. Please try again.');
+      }
+    });
+    
+    // Forgot password
+    document.getElementById('forgot-password').addEventListener('click', async function(e) {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value || prompt('Please enter your email address:');
+      
+      if (!email) return;
+      
+      if (!validateEmail(email)) {
+        alert('Please enter a valid email address');
+        return;
+      }
+      
+      try {
+        await Parse.User.requestPasswordReset(email);
+        alert('Password reset email sent successfully! Please check your inbox.');
+      } catch (error) {
+        console.error('Password reset error:', error);
+        alert('Failed to send reset email: ' + error.message);
+      }
+    });
+    
+    // Logout
+    logoutBtn.addEventListener('click', function() {
+      Parse.User.logOut();
+      checkCurrentUser();
+      showSuccess('You have been logged out successfully.');
+    });
+    
+    // Helper functions
+    function validateEmail(email) {
+      const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return re.test(email);
+    }
+    
+    function showError(id, message) {
+      const element = document.getElementById(id);
+      element.textContent = message;
+      element.style.display = 'block';
+    }
+    
+    function showSuccess(message) {
+      const successEl = document.createElement('div');
+      successEl.style.position = 'fixed';
+      successEl.style.top = '20px';
+      successEl.style.right = '20px';
+      successEl.style.backgroundColor = 'var(--success-color)';
+      successEl.style.color = '#000';
+      successEl.style.padding = '15px 25px';
+      successEl.style.borderRadius = '8px';
+      successEl.style.zIndex = '3000';
+      successEl.style.fontWeight = '600';
+      successEl.style.boxShadow = '0 4px 15px rgba(0, 0, 0, 0.3)';
+      successEl.textContent = message;
+      document.body.appendChild(successEl);
+      
+      setTimeout(() => {
+        successEl.style.opacity = '0';
+        setTimeout(() => document.body.removeChild(successEl), 300);
+      }, 3000);
+    }
+    
+    // Particle Background Config
     particlesJS("particles-js", {
       "particles": {
-        "number": { "value": 50 },
+        "number": { "value": 80 },
         "size": { "value": 3 },
         "color": { "value": "#ffffff" },
         "line_linked": {
           "enable": true,
           "distance": 150,
-          "color": "#ffffff"
+          "color": "#ffffff",
+          "opacity": 0.4,
+          "width": 1
         },
         "move": {
-          "speed": 1
+          "enable": true,
+          "speed": 2,
+          "direction": "none",
+          "random": true,
+          "straight": false,
+          "out_mode": "out",
+          "bounce": false
         }
       },
       "interactivity": {
+        "detect_on": "canvas",
         "events": {
-          "onhover": { "enable": true, "mode": "repulse" }
+          "onhover": { "enable": true, "mode": "repulse" },
+          "onclick": { "enable": true, "mode": "push" },
+          "resize": true
+        },
+        "modes": {
+          "grab": { "distance": 400, "line_linked": { "opacity": 1 } },
+          "bubble": { "distance": 400, "size": 40, "duration": 2, "opacity": 8, "speed": 3 },
+          "repulse": { "distance": 100, "duration": 0.4 },
+          "push": { "particles_nb": 4 },
+          "remove": { "particles_nb": 2 }
         }
       }
     });
-  </script>
-
-  <!-- Interactive Parallax for 3D Diagram -->
-  <script>
-    const visualPlaceholder = document.querySelector('.visual-placeholder');
-    const perspectiveWrapper = document.querySelector('.perspective-wrapper');
-
-    if (visualPlaceholder && perspectiveWrapper) {
-      const baseRotateX = 20; // Base rotation from CSS
-      const baseRotateY = -25; // Base rotation from CSS
-      const baseScale = 0.9;   // Base scale from CSS
-      const sensitivity = 5;   // Max degrees of tilt
-
-      visualPlaceholder.addEventListener('mousemove', (e) => {
-        const rect = visualPlaceholder.getBoundingClientRect();
-        const x = e.clientX - rect.left; // x position within the element.
-        const y = e.clientY - rect.top;  // y position within the element.
-
-        const centerX = rect.width / 2;
-        const centerY = rect.height / 2;
-
-        const deltaX = (x - centerX) / centerX; // -1 to 1
-        const deltaY = (y - centerY) / centerY; // -1 to 1
-
-        const rotateY = baseRotateY - (deltaX * sensitivity);
-        const rotateX = baseRotateX + (deltaY * sensitivity);
-
-        perspectiveWrapper.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${baseScale})`;
-      });
-
-      visualPlaceholder.addEventListener('mouseleave', () => {
-        // Reset to default rotation and scale
-        perspectiveWrapper.style.transform = `rotateX(${baseRotateX}deg) rotateY(${baseRotateY}deg) scale(${baseScale})`;
-      });
-    }
+    
+    // Check current user on page load
+    document.addEventListener('DOMContentLoaded', checkCurrentUser);
   </script>
 </body>
 </html>
